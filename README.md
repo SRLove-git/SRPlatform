@@ -19,6 +19,7 @@ SRPlatform 是一个面向工程学习的统一仿真平台，目标是把“电
 - [总体架构](docs/architecture.md)
 - [分阶段路线图](docs/roadmap.md)
 - [项目规范](docs/project-specification.md)
+- [进度表](docs/progress.md)
 
 ## 一句总结
 
