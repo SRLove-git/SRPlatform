@@ -33,6 +33,19 @@ target_link_libraries(srp_cli
 
 srp_enable_warnings(srp_cli)
 
+add_executable(srp_window WIN32
+    src/app/window_main.cpp
+)
+
+target_link_libraries(srp_window
+    PRIVATE
+        srp_core
+        user32
+        gdi32
+)
+
+srp_enable_warnings(srp_window)
+
 if(SRP_BUILD_TESTS)
     enable_testing()
 
