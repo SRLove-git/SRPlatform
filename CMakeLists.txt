@@ -13,6 +13,7 @@ option(SRP_BUILD_TESTS "Build SRPlatform unit tests" ON)
 
 add_library(srp_core
     src/core/version.cpp
+    src/core/loop/fixed_step_loop.cpp
 )
 
 target_include_directories(srp_core
@@ -63,5 +64,21 @@ if(SRP_BUILD_TESTS)
     add_test(
         NAME core.version
         COMMAND srp_core_tests
+    )
+
+    add_executable(srp_core_loop_tests
+        tests/unit/core/fixed_step_loop_test.cpp
+    )
+
+    target_link_libraries(srp_core_loop_tests
+        PRIVATE
+            srp_core
+    )
+
+    srp_enable_warnings(srp_core_loop_tests)
+
+    add_test(
+        NAME core.fixed_step_loop
+        COMMAND srp_core_loop_tests
     )
 endif()

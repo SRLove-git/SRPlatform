@@ -1,10 +1,18 @@
 #define WIN32_LEAN_AND_MEAN
+#include "core/loop/fixed_step_loop.hpp"
+
+#include <chrono>
+#include <cstdint>
+#include <string>
 #include <windows.h>
 
 namespace
 {
 
 constexpr wchar_t kWindowClassName[] = L"SRPlatformWindow";
+
+std::uint64_t g_simulation_ticks = 0;
+std::uint64_t g_render_frames = 0;
 
 LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_param)
 {
@@ -15,6 +23,16 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_
         PAINTSTRUCT paint{};
         HDC device_context = BeginPaint(window, &paint);
         FillRect(device_context, &paint.rcPaint, static_cast<HBRUSH>(GetStockObject(WHITE_BRUSH)));
+
+        RECT client_rect{};
+        GetClientRect(window, &client_rect);
+        DrawTextW(
+            device_context,
+            L"Fixed-step loop active",
+            -1,
+            &client_rect,
+            DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
         EndPaint(window, &paint);
         return 0;
     }
@@ -66,11 +84,48 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
     ShowWindow(window, show_command);
     UpdateWindow(window);
 
+    srp::core::FixedStepLoop fixed_loop(1.0 / 60.0, 8);
+    fixed_loop.reset(srp::core::FixedStepLoop::Clock::now());
+
     MSG message{};
-    while (GetMessageW(&message, nullptr, 0, 0) > 0)
+    bool running = true;
+    while (running)
     {
-        TranslateMessage(&message);
-        DispatchMessageW(&message);
+        while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE))
+        {
+            if (message.message == WM_QUIT)
+            {
+                running = false;
+                break;
+            }
+
+            TranslateMessage(&message);
+            DispatchMessageW(&message);
+        }
+
+        if (!running)
+        {
+            break;
+        }
+
+        const auto now = srp::core::FixedStepLoop::Clock::now();
+        const auto update = fixed_loop.advance(now);
+
+        for (std::size_t i = 0; i < update.steps; ++i)
+        {
+            ++g_simulation_ticks;
+        }
+
+        ++g_render_frames;
+
+        std::wstring title =
+            L"SRPlatform | sim=" + std::to_wstring(g_simulation_ticks) +
+            L" frames=" + std::to_wstring(g_render_frames) +
+            L" alpha=" + std::to_wstring(update.alpha);
+        SetWindowTextW(window, title.c_str());
+
+        InvalidateRect(window, nullptr, FALSE);
+        Sleep(1);
     }
 
     return static_cast<int>(message.wParam);
