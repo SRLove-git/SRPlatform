@@ -64,6 +64,11 @@ double DcMotorModel::electricalTorque() const
     return parameters_.torque_constant_nm_per_a * current_a_;
 }
 
+void DcMotorModel::setAngularVelocity(double angular_velocity)
+{
+    angular_velocity_rad_s_ = angular_velocity;
+}
+
 void DcMotorModel::step(double supply_voltage_v, double load_torque_nm, double dt_s)
 {
     if (dt_s <= 0.0)

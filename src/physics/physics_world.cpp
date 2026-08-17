@@ -114,6 +114,7 @@ JointId PhysicsWorld::createJoint(const JointDefinition& definition)
     }
 
     const JointId id = next_joint_id_++;
+    joint_indices_[id] = joints_.size();
     joints_.push_back(definition);
     return id;
 }
@@ -160,6 +161,28 @@ const CollisionShape* PhysicsWorld::shape(BodyId id) const
     }
 
     return &shapes_[it->second];
+}
+
+Joint* PhysicsWorld::joint(JointId id)
+{
+    const auto it = joint_indices_.find(id);
+    if (it == joint_indices_.end())
+    {
+        return nullptr;
+    }
+
+    return &joints_[it->second];
+}
+
+const Joint* PhysicsWorld::joint(JointId id) const
+{
+    const auto it = joint_indices_.find(id);
+    if (it == joint_indices_.end())
+    {
+        return nullptr;
+    }
+
+    return &joints_[it->second];
 }
 
 const std::vector<Contact>& PhysicsWorld::contacts() const

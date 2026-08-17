@@ -137,6 +137,7 @@ srp_enable_warnings(srp_circuit)
 add_library(srp_bridge
     src/bridge/battery_model.cpp
     src/bridge/bridge.cpp
+    src/bridge/car_entity.cpp
     src/bridge/dc_motor_model.cpp
 )
 
@@ -148,6 +149,7 @@ target_include_directories(srp_bridge
 target_link_libraries(srp_bridge
     PUBLIC
         srp_core
+        srp_physics
 )
 
 srp_enable_warnings(srp_bridge)
@@ -242,6 +244,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/circuit/regression_test.cpp
         tests/unit/bridge/battery_model_test.cpp
         tests/unit/bridge/bridge_test.cpp
+        tests/unit/bridge/car_entity_test.cpp
         tests/unit/bridge/dc_motor_model_test.cpp
         tests/unit/scripting/lua_script_host_test.cpp
         tests/unit/scripting/script_control_test.cpp

@@ -36,6 +36,7 @@ public:
     double backEmf() const;
     double electricalTorque() const;
 
+    void setAngularVelocity(double angular_velocity);
     void step(double supply_voltage_v, double load_torque_nm, double dt_s);
     void reset();
 
