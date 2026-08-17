@@ -29,6 +29,8 @@ public:
     CollisionShape* shape(BodyId id);
     const CollisionShape* shape(BodyId id) const;
 
+    const std::vector<BodyId>& bodyIds() const;
+
     Joint* joint(JointId id);
     const Joint* joint(JointId id) const;
 

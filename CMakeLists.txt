@@ -140,6 +140,7 @@ add_library(srp_bridge
     src/bridge/car_entity.cpp
     src/bridge/car_control_bus.cpp
     src/bridge/dc_motor_model.cpp
+    src/bridge/distance_sensor_model.cpp
     src/bridge/encoder_model.cpp
     src/bridge/imu_model.cpp
     src/bridge/propeller_model.cpp
@@ -254,6 +255,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/bridge/bridge_test.cpp
         tests/unit/bridge/car_entity_test.cpp
         tests/unit/bridge/dc_motor_model_test.cpp
+        tests/unit/bridge/distance_sensor_model_test.cpp
         tests/unit/bridge/encoder_model_test.cpp
         tests/unit/bridge/imu_model_test.cpp
         tests/unit/bridge/propeller_model_test.cpp

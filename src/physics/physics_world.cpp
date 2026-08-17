@@ -163,6 +163,11 @@ const CollisionShape* PhysicsWorld::shape(BodyId id) const
     return &shapes_[it->second];
 }
 
+const std::vector<BodyId>& PhysicsWorld::bodyIds() const
+{
+    return body_ids_;
+}
+
 Joint* PhysicsWorld::joint(JointId id)
 {
     const auto it = joint_indices_.find(id);
