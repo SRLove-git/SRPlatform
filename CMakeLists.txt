@@ -286,6 +286,7 @@ srp_enable_warnings(srp_rendering)
 add_library(srp_editor
     src/editor/scene_editor.cpp
     src/editor/circuit_editor.cpp
+    src/editor/script_editor.cpp
 )
 
 target_include_directories(srp_editor
@@ -385,6 +386,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/scripting/script_control_test.cpp
         tests/unit/editor/scene_editor_test.cpp
         tests/unit/editor/circuit_editor_test.cpp
+        tests/unit/editor/script_editor_test.cpp
     )
 
     target_link_libraries(srp_unit_tests

@@ -4,8 +4,10 @@
 #include "core/logging.hpp"
 #include "editor/circuit_editor.hpp"
 #include "editor/scene_editor.hpp"
+#include "editor/script_editor.hpp"
 #include "rendering/debug_draw.hpp"
 #include "scripting/car_closed_loop_demo.hpp"
+#include "scripting/lua_script_host.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -57,7 +59,10 @@ bool g_move_dragging = false;
 
 srp::editor::SceneEditor* g_scene_editor = nullptr;
 srp::editor::CircuitEditor* g_circuit_editor = nullptr;
+srp::editor::ScriptEditor* g_script_editor = nullptr;
+srp::scripting::CarClosedLoopDemo* g_car_demo = nullptr;
 std::optional<srp::circuit::ComponentType> g_circuit_placement;
+std::string g_script_status;
 
 constexpr float kCircuitScale = 60.0f;
 
@@ -104,27 +109,6 @@ srp::math::Vec2 screenToCircuit(const ImVec2& screen, const ImVec2& origin)
         (screen.x - origin.x) / kCircuitScale,
         (screen.y - origin.y) / kCircuitScale);
 }
-
-constexpr const char* kCarControllerScript =
-    "elapsed = 0\n"
-    "function update(dt)\n"
-    "    elapsed = elapsed + dt\n"
-    "    if elapsed < 2.0 then\n"
-    "        set_motor(1, 1.0)\n"
-    "        set_servo(1, 0.0)\n"
-    "    elseif elapsed < 4.0 then\n"
-    "        set_motor(1, 0.0)\n"
-    "        set_servo(1, 0.6)\n"
-    "    elseif elapsed < 6.0 then\n"
-    "        set_motor(1, 0.8)\n"
-    "        set_servo(1, -0.6)\n"
-    "    elseif elapsed < 8.0 then\n"
-    "        set_motor(1, -0.5)\n"
-    "        set_servo(1, 0.0)\n"
-    "    else\n"
-    "        elapsed = 0.0\n"
-    "    end\n"
-    "end\n";
 
 constexpr double kCameraTargetY = 0.5;
 
@@ -648,6 +632,127 @@ void drawCircuitPanel()
     ImGui::End();
 }
 
+void drawScriptPanel()
+{
+    if (g_script_editor == nullptr)
+    {
+        return;
+    }
+
+    const bool dirty = g_script_editor->dirty();
+    ImGui::SetNextWindowPos(ImVec2(820.0f, 10.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(560.0f, 420.0f), ImGuiCond_FirstUseEver);
+    ImGui::Begin(dirty ? "Script*" : "Script");
+
+    static char path_buffer[512]{};
+    const std::string current_path = g_script_editor->path().string();
+    std::snprintf(
+        path_buffer,
+        sizeof(path_buffer),
+        "%s",
+        current_path.c_str());
+
+    ImGui::InputText("Path", path_buffer, sizeof(path_buffer));
+    if (ImGui::Button("Open"))
+    {
+        std::string error;
+        if (!g_script_editor->load(path_buffer, error))
+        {
+            g_script_status = "open failed: " + error;
+        }
+        else
+        {
+            g_script_status = "opened " + std::string(path_buffer);
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Save"))
+    {
+        if (!g_script_editor->path().empty())
+        {
+            std::string error;
+            if (!g_script_editor->saveCurrent(error))
+            {
+                g_script_status = "save failed: " + error;
+            }
+            else
+            {
+                g_script_status = "saved " + g_script_editor->path().string();
+            }
+        }
+        else
+        {
+            g_script_status = "set a path before saving";
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Run"))
+    {
+        if (g_car_demo != nullptr)
+        {
+            if (g_car_demo->loadScript("controller", g_script_editor->text()))
+            {
+                g_script_status = "script loaded and running";
+            }
+            else
+            {
+                g_script_status = "script error: " +
+                    g_car_demo->host().lastError().value_or("unknown");
+            }
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Reload from file"))
+    {
+        std::string error;
+        if (!g_script_editor->path().empty() &&
+            g_script_editor->load(g_script_editor->path(), error))
+        {
+            g_script_status = "reloaded from " + g_script_editor->path().string();
+        }
+        else
+        {
+            g_script_status = "reload failed: " + error;
+        }
+    }
+
+    ImGui::Text("Ctrl+S saves the current file.");
+    ImGui::Separator();
+
+    static std::string text_buffer;
+    text_buffer = g_script_editor->text();
+    text_buffer.push_back('\0');
+    const ImVec2 text_size = ImGui::GetContentRegionAvail();
+    if (ImGui::InputTextMultiline(
+            "##script_source",
+            text_buffer.data(),
+            static_cast<int>(text_buffer.size()),
+            ImVec2(text_size.x, std::max(120.0f, text_size.y - 60.0f)),
+            ImGuiInputTextFlags_AllowTabInput))
+    {
+        g_script_editor->setText(std::string(text_buffer.data()));
+    }
+
+    ImGui::Separator();
+    ImGui::TextWrapped("%s", g_script_status.c_str());
+
+    if (ImGui::IsWindowFocused() &&
+        ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S))
+    {
+        std::string error;
+        if (g_script_editor->saveCurrent(error))
+        {
+            g_script_status = "saved " + g_script_editor->path().string();
+        }
+        else
+        {
+            g_script_status = "save failed: " + error;
+        }
+    }
+
+    ImGui::End();
+}
+
 void drawScenePanel()
 {
     if (g_scene_editor == nullptr)
@@ -927,10 +1032,24 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
     g_circuit_editor = &circuit_editor;
 
     srp::scripting::CarClosedLoopDemo car_demo;
-    if (!car_demo.loadScript("controller", kCarControllerScript))
+    g_car_demo = &car_demo;
+
+    srp::editor::ScriptEditor script_editor;
+    g_script_editor = &script_editor;
+    std::string script_error;
+    if (!script_editor.load("assets/scripts/car_controller.lua", script_error))
     {
-        srp::core::logError("failed to load car controller script");
+        srp::core::logError("failed to open example script: " + script_error);
     }
+    else if (!car_demo.loadScript("controller", script_editor.text()))
+    {
+        srp::core::logError(
+            "failed to load car controller script: " +
+            car_demo.host().lastError().value_or("unknown"));
+    }
+    g_script_status = script_editor.path().empty()
+        ? "no script loaded"
+        : "loaded " + script_editor.path().string();
 
     srp::core::logInfo(
         "SRPlatform editor ready (left click select, right drag orbit, wheel zoom)");
@@ -991,7 +1110,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 
         drawScenePanel();
         drawCircuitPanel();
+        drawScriptPanel();
 
+        ImGui::SetNextWindowPos(ImVec2(1180.0f, 10.0f), ImGuiCond_FirstUseEver);
         ImGui::Begin("Tool UI");
         ImGui::Text("Simulation ticks: %llu", g_simulation_ticks);
         ImGui::Text("Render frames: %llu", g_render_frames);
@@ -1018,6 +1139,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 
     g_scene_editor = nullptr;
     g_circuit_editor = nullptr;
+    g_script_editor = nullptr;
+    g_car_demo = nullptr;
     ImGui_ImplOpenGL2_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();

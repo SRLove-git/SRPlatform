@@ -8,8 +8,8 @@ namespace srp::core
 
 struct WindowConfig
 {
-    int width{800};
-    int height{600};
+    int width{1440};
+    int height{900};
     std::string title{"SRPlatform"};
 };
 

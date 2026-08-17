@@ -8,8 +8,8 @@
 TEST(CoreAppConfig, DefaultsAreCorrect)
 {
     const auto defaults = srp::core::defaultAppConfig();
-    EXPECT_EQ(defaults.window.width, 800);
-    EXPECT_EQ(defaults.window.height, 600);
+    EXPECT_EQ(defaults.window.width, 1440);
+    EXPECT_EQ(defaults.window.height, 900);
     EXPECT_EQ(defaults.window.title, "SRPlatform");
     EXPECT_EQ(defaults.simulation.max_steps_per_frame, 8);
 }
