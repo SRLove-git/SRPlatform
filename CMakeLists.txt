@@ -75,6 +75,40 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(googletest)
 
+set(IMGUI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.8
+)
+
+FetchContent_MakeAvailable(imgui)
+
+add_library(imgui STATIC
+    "${imgui_SOURCE_DIR}/imgui.cpp"
+    "${imgui_SOURCE_DIR}/imgui_demo.cpp"
+    "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+    "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+    "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+    "${imgui_SOURCE_DIR}/backends/imgui_impl_opengl2.cpp"
+    "${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp"
+)
+
+target_include_directories(imgui
+    PUBLIC
+        "${imgui_SOURCE_DIR}"
+        "${imgui_SOURCE_DIR}/backends"
+)
+
+target_link_libraries(imgui
+    PUBLIC
+        opengl32
+        dwmapi
+)
+
+srp_enable_warnings(imgui)
+
 option(SRP_BUILD_TESTS "Build SRPlatform unit tests" ON)
 
 add_library(srp_core
@@ -268,6 +302,7 @@ target_link_libraries(srp_window
     PRIVATE
         srp_rendering
         srp_scripting
+        imgui
         user32
         gdi32
 )

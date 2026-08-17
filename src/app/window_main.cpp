@@ -15,8 +15,21 @@
 #include <windows.h>
 #include <windowsx.h>
 
+#include <imgui.h>
+#include <imgui_impl_opengl2.h>
+#include <imgui_impl_win32.h>
+
 #include <GL/gl.h>
 #include <GL/glu.h>
+
+// Forward declaration copied from the ImGui Win32 backend: the backend header
+// intentionally keeps this declaration behind '#if 0' to avoid dragging
+// <windows.h> dependencies into other translation units.
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
+    HWND hWnd,
+    UINT msg,
+    WPARAM wParam,
+    LPARAM lParam);
 
 namespace
 {
@@ -55,7 +68,6 @@ constexpr const char* kCarControllerScript =
     "end\n";
 
 void renderScene(
-    HDC device_context,
     int width,
     int height,
     const srp::physics::PhysicsWorld& world,
@@ -139,11 +151,15 @@ void renderScene(
         srp::rendering::drawContactPoint(contact.point);
     }
 
-    SwapBuffers(device_context);
 }
 
 LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_param)
 {
+    if (ImGui_ImplWin32_WndProcHandler(window, message, w_param, l_param))
+    {
+        return true;
+    }
+
     switch (message)
     {
     case WM_PAINT:
@@ -283,6 +299,12 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         return 1;
     }
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+    ImGui_ImplWin32_Init(window);
+    ImGui_ImplOpenGL2_Init();
+
     srp::physics::PhysicsWorld world;
     std::vector<srp::physics::BodyId> body_ids;
 
@@ -364,13 +386,31 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 
         RECT client_rect{};
         GetClientRect(window, &client_rect);
+
         renderScene(
-            device_context,
             client_rect.right - client_rect.left,
             client_rect.bottom - client_rect.top,
             world,
             body_ids,
             car_demo);
+
+        ImGui_ImplOpenGL2_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+        ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(300.0f, 180.0f), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Tool UI");
+        ImGui::Text("Simulation ticks: %llu", g_simulation_ticks);
+        ImGui::Text("Render frames: %llu", g_render_frames);
+        ImGui::Text("Fixed steps this frame: %zu", update.steps);
+        ImGui::Text("Bodies: %zu", world.bodyIds().size());
+        ImGui::End();
+
+        ImGui::Render();
+
+        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+        SwapBuffers(device_context);
 
         const double car_x = car_demo.car().chassisBody() != nullptr
             ? car_demo.car().chassisBody()->position.x
@@ -385,6 +425,10 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 
         Sleep(1);
     }
+
+    ImGui_ImplOpenGL2_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
 
     wglMakeCurrent(nullptr, nullptr);
     wglDeleteContext(gl_context);
