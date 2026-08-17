@@ -209,6 +209,8 @@ target_include_directories(srp_control
 srp_enable_warnings(srp_control)
 
 add_library(srp_bridge
+    src/bridge/arm_entity.cpp
+    src/bridge/arm_control_bus.cpp
     src/bridge/battery_model.cpp
     src/bridge/bridge.cpp
     src/bridge/car_entity.cpp
@@ -240,6 +242,7 @@ target_link_libraries(srp_bridge
 srp_enable_warnings(srp_bridge)
 
 add_library(srp_scripting
+    src/scripting/arm_closed_loop_demo.cpp
     src/scripting/car_closed_loop_demo.cpp
     src/scripting/drone_closed_loop_demo.cpp
     src/scripting/hot_reload_script_host.cpp
@@ -292,6 +295,7 @@ add_library(srp_editor
     src/editor/simulation_control.cpp
     src/editor/simulation_recorder.cpp
     src/editor/playback_controller.cpp
+    src/editor/course_catalog.cpp
 )
 
 target_include_directories(srp_editor
@@ -374,6 +378,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/mod/entity_blueprint_test.cpp
         tests/unit/mod/mod_registry_test.cpp
         tests/unit/bridge/battery_model_test.cpp
+        tests/unit/bridge/arm_entity_test.cpp
         tests/unit/bridge/bridge_test.cpp
         tests/unit/bridge/car_entity_test.cpp
         tests/unit/bridge/dc_motor_model_test.cpp
@@ -389,6 +394,8 @@ if(SRP_BUILD_TESTS)
         tests/unit/scripting/hot_reload_script_host_test.cpp
         tests/unit/scripting/car_closed_loop_demo_test.cpp
         tests/unit/scripting/drone_closed_loop_demo_test.cpp
+        tests/unit/scripting/arm_demo_test.cpp
+        tests/unit/scripting/sensor_override_test.cpp
         tests/unit/scripting/mod_entity_demo_test.cpp
         tests/unit/scripting/script_control_test.cpp
         tests/unit/editor/scene_editor_test.cpp
@@ -397,6 +404,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/editor/observation_test.cpp
         tests/unit/editor/simulation_control_test.cpp
         tests/unit/editor/recording_test.cpp
+        tests/unit/editor/course_catalog_test.cpp
     )
 
     target_link_libraries(srp_unit_tests

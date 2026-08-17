@@ -1,8 +1,10 @@
 #pragma once
 
+#include "bridge/bridge_types.hpp"
 #include "scripting/script_host.hpp"
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -34,6 +36,14 @@ public:
     std::size_t scriptCount() const override;
 
     void bindControl(std::shared_ptr<bridge::Bridge> bridge);
+
+    // Registers an external sensor provider consulted before the bridge when
+    // read_sensor() is called. Used by courses to expose sensors that live in
+    // the editor layer (e.g. distance sensors aimed at the editable scene).
+    void setSensorOverride(
+        bridge::SensorId id,
+        std::function<std::optional<double>()> provider);
+    void clearSensorOverrides();
 
     std::optional<std::string> lastError() const;
     std::optional<double> getNumber(

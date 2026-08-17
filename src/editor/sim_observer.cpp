@@ -141,4 +141,28 @@ void sampleCarTelemetry(
         dt);
 }
 
+void sampleDroneTelemetry(
+    const bridge::DroneEntity& drone,
+    SimObserver& observer)
+{
+    observer.setSimTime(drone.elapsedTime());
+    observer.record("drone_altitude_m", drone.altitude());
+    observer.record("drone_vertical_velocity_m_s", drone.verticalVelocity());
+}
+
+void sampleArmTelemetry(
+    const bridge::ArmEntity& arm,
+    SimObserver& observer)
+{
+    for (std::size_t i = 0; i < arm.jointCount(); ++i)
+    {
+        observer.record(
+            "arm_joint_" + std::to_string(i + 1) + "_rad",
+            arm.jointAngle(i));
+    }
+    const srp::math::Vec3 end = arm.endEffectorPosition();
+    observer.record("arm_effector_x_m", end.x);
+    observer.record("arm_effector_y_m", end.y);
+}
+
 }  // namespace srp::editor

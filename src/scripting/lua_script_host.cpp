@@ -31,6 +31,8 @@ struct LuaScriptHost::Impl
     sol::state lua;
     std::unordered_map<std::string, std::unique_ptr<Script>> scripts;
     std::shared_ptr<bridge::Bridge> bridge;
+    std::unordered_map<bridge::SensorId, std::function<std::optional<double>()>>
+        sensor_overrides;
     std::string last_error;
 
     Impl()
@@ -53,6 +55,13 @@ struct LuaScriptHost::Impl
             "read_sensor",
             [this](bridge::SensorId id) -> bridge::SensorValue
             {
+                const auto override_it = sensor_overrides.find(id);
+                if (override_it != sensor_overrides.end())
+                {
+                    return override_it->second().value_or(
+                        std::numeric_limits<double>::quiet_NaN());
+                }
+
                 if (bridge == nullptr || !bridge->hasSensorBus())
                 {
                     return std::numeric_limits<double>::quiet_NaN();
@@ -182,6 +191,18 @@ std::size_t LuaScriptHost::scriptCount() const
 void LuaScriptHost::bindControl(std::shared_ptr<bridge::Bridge> bridge)
 {
     impl_->bridge = std::move(bridge);
+}
+
+void LuaScriptHost::setSensorOverride(
+    bridge::SensorId id,
+    std::function<std::optional<double>()> provider)
+{
+    impl_->sensor_overrides[id] = std::move(provider);
+}
+
+void LuaScriptHost::clearSensorOverrides()
+{
+    impl_->sensor_overrides.clear();
 }
 
 std::optional<std::string> LuaScriptHost::lastError() const

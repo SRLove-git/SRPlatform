@@ -1,0 +1,12 @@
+{
+  "id": "quadcopter",
+  "title": "四旋翼悬停",
+  "description": "PID/PD 控制让四旋翼稳定悬停在目标高度。",
+  "entity": "drone",
+  "script": "assets/scripts/courses/quadcopter_hover.lua",
+  "objective": "让无人机悬停在 1 米高度",
+  "channels": [
+    "drone_altitude_m",
+    "drone_vertical_velocity_m_s"
+  ]
+}

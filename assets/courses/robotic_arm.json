@@ -1,0 +1,13 @@
+{
+  "id": "robotic_arm",
+  "title": "机械臂",
+  "description": "用舵机指令控制机械臂关节完成抬升与伸展动作。",
+  "entity": "arm",
+  "script": "assets/scripts/courses/robotic_arm.lua",
+  "objective": "让机械臂完成抬臂、伸肘、复位循环",
+  "channels": [
+    "arm_joint_1_rad",
+    "arm_joint_2_rad",
+    "arm_joint_3_rad"
+  ]
+}

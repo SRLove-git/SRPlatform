@@ -87,5 +87,34 @@ TEST(SimObserverTest, ClearDropsChannels)
     EXPECT_TRUE(observer.channelNames().empty());
 }
 
+TEST(SimObserverTest, DroneTelemetryRecordsAltitude)
+{
+    srp::bridge::DroneEntity drone;
+    SimObserver observer;
+    sampleDroneTelemetry(drone, observer);
+
+    EXPECT_TRUE(observer.hasChannel("drone_altitude_m"));
+    EXPECT_TRUE(observer.hasChannel("drone_vertical_velocity_m_s"));
+    EXPECT_GE(observer.channel("drone_altitude_m").latestValue().value_or(-1.0), 0.0);
+}
+
+TEST(SimObserverTest, ArmTelemetryRecordsJointsAndEffector)
+{
+    srp::bridge::ArmEntity arm;
+    arm.setServo(0, 1.0);
+    for (int i = 0; i < 60; ++i)
+    {
+        arm.step(1.0 / 60.0);
+    }
+
+    SimObserver observer;
+    sampleArmTelemetry(arm, observer);
+
+    EXPECT_TRUE(observer.hasChannel("arm_joint_1_rad"));
+    EXPECT_TRUE(observer.hasChannel("arm_joint_2_rad"));
+    EXPECT_TRUE(observer.hasChannel("arm_effector_x_m"));
+    EXPECT_GT(observer.channel("arm_joint_1_rad").latestValue().value_or(0.0), 0.5);
+}
+
 }  // namespace
 }  // namespace srp::editor

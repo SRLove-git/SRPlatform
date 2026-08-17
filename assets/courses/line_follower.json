@@ -1,0 +1,31 @@
+{
+  "id": "line_follower",
+  "title": "循迹小车",
+  "description": "利用左右前向距离传感器让小车沿障碍物边缘行驶。",
+  "entity": "car",
+  "script": "assets/scripts/courses/line_follower.lua",
+  "objective": "保持小车与障碍物边缘的距离基本恒定",
+  "initial_bodies": [
+    {
+      "kind": "box",
+      "position": [2.5, 0.5, -1.2]
+    },
+    {
+      "kind": "box",
+      "position": [4.0, 0.5, -1.0]
+    },
+    {
+      "kind": "box",
+      "position": [5.5, 0.5, -0.8]
+    },
+    {
+      "kind": "box",
+      "position": [7.0, 0.5, -0.4]
+    }
+  ],
+  "channels": [
+    "sensor_distance_left_m",
+    "sensor_distance_right_m",
+    "chassis_speed_m_s"
+  ]
+}

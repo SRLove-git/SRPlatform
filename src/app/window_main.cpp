@@ -3,6 +3,7 @@
 #include "core/loop/fixed_step_loop.hpp"
 #include "core/logging.hpp"
 #include "bridge/distance_sensor_model.hpp"
+#include "editor/course_catalog.hpp"
 #include "editor/circuit_editor.hpp"
 #include "editor/playback_controller.hpp"
 #include "editor/scene_editor.hpp"
@@ -13,6 +14,8 @@
 #include "editor/time_series.hpp"
 #include "rendering/debug_draw.hpp"
 #include "scripting/car_closed_loop_demo.hpp"
+#include "scripting/arm_closed_loop_demo.hpp"
+#include "scripting/drone_closed_loop_demo.hpp"
 #include "scripting/lua_script_host.hpp"
 
 #include <algorithm>
@@ -22,6 +25,7 @@
 #include <cstdio>
 #include <fstream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -66,12 +70,15 @@ bool g_move_dragging = false;
 srp::editor::SceneEditor* g_scene_editor = nullptr;
 srp::editor::CircuitEditor* g_circuit_editor = nullptr;
 srp::editor::ScriptEditor* g_script_editor = nullptr;
-srp::scripting::CarClosedLoopDemo* g_car_demo = nullptr;
+srp::editor::CourseCatalog g_course_catalog;
+srp::editor::CourseCatalog* g_course_catalog_ptr = nullptr;
 std::optional<srp::circuit::ComponentType> g_circuit_placement;
 std::string g_script_status;
 
 srp::editor::SimObserver g_observer;
 srp::bridge::DistanceSensorModel g_front_sensor;
+srp::bridge::DistanceSensorModel g_left_sensor;
+srp::bridge::DistanceSensorModel g_right_sensor;
 bool g_observation_enabled = true;
 srp::editor::SimulationControl g_sim_control;
 srp::editor::SimulationRecorder g_recorder;
@@ -80,9 +87,72 @@ bool g_playback_active = false;
 srp::core::FixedStepLoop::Clock::time_point g_last_frame_time{};
 bool g_has_last_frame_time = false;
 
+struct ActiveDemo
+{
+    std::unique_ptr<srp::scripting::CarClosedLoopDemo> car;
+    std::unique_ptr<srp::scripting::DroneClosedLoopDemo> drone;
+    std::unique_ptr<srp::scripting::ArmClosedLoopDemo> arm;
+    std::string kind;
+
+    bool has() const
+    {
+        return !kind.empty();
+    }
+
+    srp::scripting::LuaScriptHost& host()
+    {
+        if (kind == "drone")
+        {
+            return drone->host();
+        }
+        if (kind == "arm")
+        {
+            return arm->host();
+        }
+        return car->host();
+    }
+
+    bool loadScript(const std::string& source, std::string& error)
+    {
+        if (!host().load("controller", source))
+        {
+            error = host().lastError().value_or("unknown script error");
+            return false;
+        }
+        return true;
+    }
+
+    bool step(double dt)
+    {
+        if (kind == "drone")
+        {
+            return drone->step(dt);
+        }
+        if (kind == "arm")
+        {
+            return arm->step(dt);
+        }
+        return car->step(dt);
+    }
+
+    double elapsedTime() const
+    {
+        if (kind == "drone")
+        {
+            return drone->drone().elapsedTime();
+        }
+        if (kind == "arm")
+        {
+            return 0.0;
+        }
+        return car->car().elapsedTime();
+    }
+};
+
+ActiveDemo g_demo;
+
 std::vector<srp::editor::BodySnapshot> captureBodySnapshots(
-    const srp::editor::SceneEditor& scene_editor,
-    const srp::scripting::CarClosedLoopDemo& car_demo)
+    const srp::editor::SceneEditor& scene_editor)
 {
     std::vector<srp::editor::BodySnapshot> snapshots;
 
@@ -114,26 +184,58 @@ std::vector<srp::editor::BodySnapshot> captureBodySnapshots(
         snapshots.push_back(std::move(snapshot));
     }
 
-    const srp::physics::RigidBodyState* chassis = car_demo.car().chassisBody();
-    if (chassis != nullptr)
+    if (g_demo.kind == "car" && g_demo.car != nullptr)
     {
-        srp::editor::BodySnapshot snapshot;
-        snapshot.name = "car_chassis";
-        snapshot.kind = "chassis";
-        snapshot.position = chassis->position;
-        snapshot.orientation = chassis->orientation;
-        snapshots.push_back(std::move(snapshot));
-    }
+        const srp::physics::RigidBodyState* chassis =
+            g_demo.car->car().chassisBody();
+        if (chassis != nullptr)
+        {
+            srp::editor::BodySnapshot snapshot;
+            snapshot.name = "car_chassis";
+            snapshot.kind = "chassis";
+            snapshot.position = chassis->position;
+            snapshot.orientation = chassis->orientation;
+            snapshots.push_back(std::move(snapshot));
+        }
 
-    const srp::physics::RigidBodyState* wheel = car_demo.car().wheelBody();
-    if (wheel != nullptr)
+        const srp::physics::RigidBodyState* wheel =
+            g_demo.car->car().wheelBody();
+        if (wheel != nullptr)
+        {
+            srp::editor::BodySnapshot snapshot;
+            snapshot.name = "car_wheel";
+            snapshot.kind = "wheel";
+            snapshot.position = wheel->position;
+            snapshot.orientation = wheel->orientation;
+            snapshots.push_back(std::move(snapshot));
+        }
+    }
+    else if (g_demo.kind == "drone" && g_demo.drone != nullptr)
     {
-        srp::editor::BodySnapshot snapshot;
-        snapshot.name = "car_wheel";
-        snapshot.kind = "wheel";
-        snapshot.position = wheel->position;
-        snapshot.orientation = wheel->orientation;
-        snapshots.push_back(std::move(snapshot));
+        const srp::physics::RigidBodyState* body = g_demo.drone->drone().body();
+        if (body != nullptr)
+        {
+            srp::editor::BodySnapshot snapshot;
+            snapshot.name = "drone_body";
+            snapshot.kind = "drone";
+            snapshot.position = body->position;
+            snapshot.orientation = body->orientation;
+            snapshots.push_back(std::move(snapshot));
+        }
+    }
+    else if (g_demo.kind == "arm" && g_demo.arm != nullptr)
+    {
+        for (std::size_t i = 0; i < g_demo.arm->arm().jointCount(); ++i)
+        {
+            const auto [position, orientation] =
+                g_demo.arm->arm().linkTransform(i);
+            srp::editor::BodySnapshot snapshot;
+            snapshot.name = "arm_link_" + std::to_string(i);
+            snapshot.kind = "arm_link";
+            snapshot.position = position;
+            snapshot.orientation = orientation;
+            snapshots.push_back(std::move(snapshot));
+        }
     }
 
     return snapshots;
@@ -189,6 +291,26 @@ void drawPlaybackBodies(const std::vector<srp::editor::BodySnapshot>& bodies)
             glColor3d(0.95, 0.7, 0.2);
             srp::physics::SphereShape shape;
             shape.radius = 0.3;
+            srp::rendering::drawCollisionShape(
+                shape,
+                snapshot.position,
+                snapshot.orientation);
+        }
+        else if (snapshot.kind == "drone")
+        {
+            glColor3d(0.8, 0.4, 0.9);
+            srp::physics::SphereShape shape;
+            shape.radius = 0.25;
+            srp::rendering::drawCollisionShape(
+                shape,
+                snapshot.position,
+                snapshot.orientation);
+        }
+        else if (snapshot.kind == "arm_link")
+        {
+            glColor3d(0.9, 0.5, 0.2);
+            srp::physics::BoxShape shape;
+            shape.half_extents = srp::math::Vec3(0.5, 0.07, 0.07);
             srp::rendering::drawCollisionShape(
                 shape,
                 snapshot.position,
@@ -373,8 +495,7 @@ void handleViewportDrag(HWND window, int x, int y)
 void renderScene(
     int width,
     int height,
-    const srp::editor::SceneEditor& scene_editor,
-    const srp::scripting::CarClosedLoopDemo& car_demo)
+    const srp::editor::SceneEditor& scene_editor)
 {
     if (width <= 0 || height <= 0)
     {
@@ -447,24 +568,64 @@ void renderScene(
             body->orientation);
     }
 
-    const srp::physics::RigidBodyState* chassis = car_demo.car().chassisBody();
-    if (chassis != nullptr)
+    if (g_demo.kind == "car" && g_demo.car != nullptr)
     {
-        glColor3d(0.2, 0.9, 0.4);
-        srp::rendering::drawCollisionShape(
-            car_demo.car().chassisShape(),
-            chassis->position,
-            chassis->orientation);
-    }
+        const srp::physics::RigidBodyState* chassis =
+            g_demo.car->car().chassisBody();
+        if (chassis != nullptr)
+        {
+            glColor3d(0.2, 0.9, 0.4);
+            srp::rendering::drawCollisionShape(
+                g_demo.car->car().chassisShape(),
+                chassis->position,
+                chassis->orientation);
+        }
 
-    const srp::physics::RigidBodyState* wheel = car_demo.car().wheelBody();
-    if (wheel != nullptr)
+        const srp::physics::RigidBodyState* wheel =
+            g_demo.car->car().wheelBody();
+        if (wheel != nullptr)
+        {
+            glColor3d(0.95, 0.7, 0.2);
+            srp::rendering::drawCollisionShape(
+                g_demo.car->car().wheelShape(),
+                wheel->position,
+                wheel->orientation);
+        }
+    }
+    else if (g_demo.kind == "drone" && g_demo.drone != nullptr)
     {
-        glColor3d(0.95, 0.7, 0.2);
+        const srp::physics::RigidBodyState* body = g_demo.drone->drone().body();
+        if (body != nullptr)
+        {
+            glColor3d(0.8, 0.4, 0.9);
+            srp::rendering::drawCollisionShape(
+                g_demo.drone->drone().bodyShape(),
+                body->position,
+                body->orientation);
+        }
+    }
+    else if (g_demo.kind == "arm" && g_demo.arm != nullptr)
+    {
+        for (std::size_t i = 0; i < g_demo.arm->arm().jointCount(); ++i)
+        {
+            const auto [position, orientation] =
+                g_demo.arm->arm().linkTransform(i);
+            glColor3d(0.9, 0.5, 0.2);
+            srp::physics::BoxShape shape;
+            shape.half_extents = srp::math::Vec3(0.5, 0.07, 0.07);
+            srp::rendering::drawCollisionShape(
+                shape,
+                position,
+                orientation);
+        }
+        glColor3d(0.95, 0.85, 0.2);
+        const srp::math::Vec3 end = g_demo.arm->arm().endEffectorPosition();
+        srp::physics::SphereShape effector;
+        effector.radius = 0.06;
         srp::rendering::drawCollisionShape(
-            car_demo.car().wheelShape(),
-            wheel->position,
-            wheel->orientation);
+            effector,
+            end,
+            srp::math::Quat(1.0, 0.0, 0.0, 0.0));
     }
 
     glColor3d(1.0, 0.2, 0.2);
@@ -1059,6 +1220,143 @@ void drawRecordingPanel()
     ImGui::End();
 }
 
+srp::editor::ShapeKind shapeKindFromName(const std::string& kind)
+{
+    if (kind == "sphere")
+    {
+        return srp::editor::ShapeKind::kSphere;
+    }
+    if (kind == "cylinder")
+    {
+        return srp::editor::ShapeKind::kCylinder;
+    }
+    return srp::editor::ShapeKind::kBox;
+}
+
+void applyCourse(
+    const srp::editor::CourseDefinition& course,
+    srp::editor::SceneEditor& scene_editor)
+{
+    g_playback_active = false;
+    g_playback.stop();
+    g_recorder.clear();
+    g_sim_control.pause();
+    g_sim_control.resetCounters();
+    g_observer.clear();
+    g_simulation_ticks = 0;
+
+    scene_editor.clearObjects();
+    for (const srp::editor::SceneObjectSpec& spec : course.initial_bodies)
+    {
+        scene_editor.addBody(shapeKindFromName(spec.kind), spec.position);
+    }
+
+    if (course.entity == "drone")
+    {
+        g_demo.drone = std::make_unique<srp::scripting::DroneClosedLoopDemo>();
+        g_demo.car.reset();
+        g_demo.arm.reset();
+        g_demo.kind = "drone";
+    }
+    else if (course.entity == "arm")
+    {
+        g_demo.arm = std::make_unique<srp::scripting::ArmClosedLoopDemo>();
+        g_demo.car.reset();
+        g_demo.drone.reset();
+        g_demo.kind = "arm";
+    }
+    else
+    {
+        g_demo.car = std::make_unique<srp::scripting::CarClosedLoopDemo>();
+        g_demo.drone.reset();
+        g_demo.arm.reset();
+        g_demo.kind = "car";
+    }
+
+    std::string script_text;
+    if (!course.script.empty())
+    {
+        std::ifstream stream(course.script);
+        if (stream.is_open())
+        {
+            std::ostringstream buffer;
+            buffer << stream.rdbuf();
+            script_text = buffer.str();
+        }
+    }
+
+    std::string error;
+    if (!script_text.empty() && !g_demo.loadScript(script_text, error))
+    {
+        srp::core::logError("course script failed: " + error);
+    }
+
+    g_demo.host().clearSensorOverrides();
+    if (course.id == "line_follower")
+    {
+        g_demo.host().setSensorOverride(
+            11,
+            []
+            {
+                return std::optional<double>(g_left_sensor.distance());
+            });
+        g_demo.host().setSensorOverride(
+            12,
+            []
+            {
+                return std::optional<double>(g_right_sensor.distance());
+            });
+    }
+
+    g_script_status = "course loaded: " + course.title;
+}
+
+void drawCoursesPanel()
+{
+    if (g_course_catalog_ptr == nullptr || g_scene_editor == nullptr)
+    {
+        return;
+    }
+
+    ImGui::SetNextWindowPos(ImVec2(900.0f, 440.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(520.0f, 350.0f), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Courses");
+
+    static const srp::editor::CourseDefinition* selected = nullptr;
+    const std::vector<srp::editor::CourseDefinition>& courses =
+        g_course_catalog_ptr->courses();
+    if (courses.empty())
+    {
+        ImGui::TextDisabled("no course files found in assets/courses");
+    }
+
+    for (const srp::editor::CourseDefinition& course : courses)
+    {
+        const bool is_selected = selected == &course;
+        if (ImGui::Selectable(course.title.c_str(), is_selected))
+        {
+            selected = &course;
+        }
+    }
+
+    if (selected != nullptr)
+    {
+        ImGui::Separator();
+        ImGui::TextWrapped("%s", selected->description.c_str());
+        ImGui::TextWrapped("Objective: %s", selected->objective.c_str());
+        ImGui::Text(
+            "Entity: %s | Script: %s",
+            selected->entity.c_str(),
+            selected->script.c_str());
+        if (ImGui::Button("Load Course"))
+        {
+            applyCourse(*selected, *g_scene_editor);
+        }
+    }
+
+    ImGui::End();
+}
+
 void drawScriptPanel()
 {
     if (g_script_editor == nullptr)
@@ -1115,16 +1413,16 @@ void drawScriptPanel()
     ImGui::SameLine();
     if (ImGui::Button("Run"))
     {
-        if (g_car_demo != nullptr)
+        if (g_demo.has())
         {
-            if (g_car_demo->loadScript("controller", g_script_editor->text()))
+            std::string run_error;
+            if (g_demo.loadScript(g_script_editor->text(), run_error))
             {
                 g_script_status = "script loaded and running";
             }
             else
             {
-                g_script_status = "script error: " +
-                    g_car_demo->host().lastError().value_or("unknown");
+                g_script_status = "script error: " + run_error;
             }
         }
     }
@@ -1367,7 +1665,11 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_
 
 }  // namespace
 
-int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
+int WINAPI WinMain(
+    HINSTANCE instance,
+    HINSTANCE,
+    LPSTR command_line,
+    int show_command)
 {
     const auto config = srp::core::loadAppConfig("assets/config/app.json");
     srp::core::initLogging(config.logging.level);
@@ -1460,19 +1762,63 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 
     srp::editor::SceneEditor scene_editor;
     g_scene_editor = &scene_editor;
-    scene_editor.addBody(srp::editor::ShapeKind::kBox);
-    scene_editor.addBody(srp::editor::ShapeKind::kSphere);
 
     srp::editor::CircuitEditor circuit_editor;
     g_circuit_editor = &circuit_editor;
-
-    srp::scripting::CarClosedLoopDemo car_demo;
-    g_car_demo = &car_demo;
 
     srp::bridge::DistanceSensorParameters sensor_parameters;
     sensor_parameters.max_range_m = 4.0;
     sensor_parameters.beam_axis_local = srp::math::Vec3(1.0, 0.0, 0.0);
     g_front_sensor = srp::bridge::DistanceSensorModel(sensor_parameters);
+
+    constexpr double kBeamAngle = 0.45;
+    srp::bridge::DistanceSensorParameters side_sensor_parameters;
+    side_sensor_parameters.max_range_m = 4.0;
+    side_sensor_parameters.beam_axis_local = srp::math::Vec3(
+        std::cos(kBeamAngle),
+        0.0,
+        -std::sin(kBeamAngle));
+    g_left_sensor = srp::bridge::DistanceSensorModel(side_sensor_parameters);
+    side_sensor_parameters.beam_axis_local = srp::math::Vec3(
+        std::cos(kBeamAngle),
+        0.0,
+        std::sin(kBeamAngle));
+    g_right_sensor = srp::bridge::DistanceSensorModel(side_sensor_parameters);
+
+    std::string course_error;
+    if (!g_course_catalog.loadDirectory("assets/courses", course_error))
+    {
+        srp::core::logError("failed to load courses: " + course_error);
+    }
+    g_course_catalog_ptr = &g_course_catalog;
+
+    // Parse "--course <id>" from the command line for testing/launching.
+    std::string course_id = "rc_car";
+    if (command_line != nullptr)
+    {
+        std::istringstream arguments(command_line);
+        std::string argument;
+        while (arguments >> argument)
+        {
+            if (argument == "--course" && (arguments >> argument))
+            {
+                course_id = argument;
+            }
+        }
+    }
+
+    const srp::editor::CourseDefinition* default_course =
+        g_course_catalog.find(course_id);
+    if (default_course != nullptr)
+    {
+        applyCourse(*default_course, scene_editor);
+        g_sim_control.play();
+    }
+    else
+    {
+        g_demo.car = std::make_unique<srp::scripting::CarClosedLoopDemo>();
+        g_demo.kind = "car";
+    }
 
     srp::editor::ScriptEditor script_editor;
     g_script_editor = &script_editor;
@@ -1480,12 +1826,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
     if (!script_editor.load("assets/scripts/car_controller.lua", script_error))
     {
         srp::core::logError("failed to open example script: " + script_error);
-    }
-    else if (!car_demo.loadScript("controller", script_editor.text()))
-    {
-        srp::core::logError(
-            "failed to load car controller script: " +
-            car_demo.host().lastError().value_or("unknown"));
     }
     g_script_status = script_editor.path().empty()
         ? "no script loaded"
@@ -1544,38 +1884,80 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         for (std::size_t i = 0; i < steps_to_run; ++i)
         {
             scene_editor.world().step(config.simulation.fixed_dt);
-            car_demo.step(config.simulation.fixed_dt);
+            g_demo.step(config.simulation.fixed_dt);
             ++g_simulation_ticks;
 
             if (g_recorder.recording())
             {
                 g_recorder.record(
-                    car_demo.car().elapsedTime(),
-                    captureBodySnapshots(scene_editor, car_demo));
+                    g_demo.elapsedTime(),
+                    captureBodySnapshots(scene_editor));
             }
 
             if (g_observation_enabled)
             {
-                srp::editor::sampleCarTelemetry(
-                    car_demo.car(),
-                    scene_editor.world(),
-                    config.simulation.fixed_dt,
-                    g_observer);
-
-                const srp::physics::RigidBodyState* chassis =
-                    car_demo.car().chassisBody();
-                if (chassis != nullptr)
+                if (g_demo.kind == "car" && g_demo.car != nullptr)
                 {
-                    g_front_sensor.setPose(
-                        chassis->position + srp::math::Vec3(0.0, 0.25, 0.0),
-                        chassis->orientation);
-                    g_front_sensor.update(scene_editor.world());
-                    g_observer.recordSensor(
-                        "distance_front_m",
-                        g_front_sensor.distance());
-                    g_observer.recordSensor(
-                        "distance_detected",
-                        g_front_sensor.detected() ? 1.0 : 0.0);
+                    srp::editor::sampleCarTelemetry(
+                        g_demo.car->car(),
+                        scene_editor.world(),
+                        config.simulation.fixed_dt,
+                        g_observer);
+
+                    const srp::physics::RigidBodyState* chassis =
+                        g_demo.car->car().chassisBody();
+                    if (chassis != nullptr)
+                    {
+                        const double sensor_y = 0.25;
+
+                        g_front_sensor.setPose(
+                            chassis->position + srp::math::Vec3(0.0, sensor_y, 0.0),
+                            chassis->orientation);
+                        g_front_sensor.update(scene_editor.world());
+                        g_observer.recordSensor(
+                            "distance_front_m",
+                            g_front_sensor.distance());
+                        g_observer.recordSensor(
+                            "distance_detected",
+                            g_front_sensor.detected() ? 1.0 : 0.0);
+
+                        constexpr double kBeamAngle = 0.45;
+                        srp::math::Vec3 beam_left(
+                            std::cos(kBeamAngle),
+                            0.0,
+                            -std::sin(kBeamAngle));
+                        srp::math::Vec3 beam_right(
+                            std::cos(kBeamAngle),
+                            0.0,
+                            std::sin(kBeamAngle));
+
+                        g_left_sensor.setPose(
+                            chassis->position + srp::math::Vec3(0.0, sensor_y, -0.25),
+                            chassis->orientation);
+                        g_left_sensor.update(scene_editor.world());
+                        g_right_sensor.setPose(
+                            chassis->position + srp::math::Vec3(0.0, sensor_y, 0.25),
+                            chassis->orientation);
+                        g_right_sensor.update(scene_editor.world());
+                        g_observer.recordSensor(
+                            "distance_left_m",
+                            g_left_sensor.distance());
+                        g_observer.recordSensor(
+                            "distance_right_m",
+                            g_right_sensor.distance());
+                    }
+                }
+                else if (g_demo.kind == "drone" && g_demo.drone != nullptr)
+                {
+                    srp::editor::sampleDroneTelemetry(
+                        g_demo.drone->drone(),
+                        g_observer);
+                }
+                else if (g_demo.kind == "arm" && g_demo.arm != nullptr)
+                {
+                    srp::editor::sampleArmTelemetry(
+                        g_demo.arm->arm(),
+                        g_observer);
                 }
             }
         }
@@ -1588,8 +1970,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         renderScene(
             client_rect.right - client_rect.left,
             client_rect.bottom - client_rect.top,
-            scene_editor,
-            car_demo);
+            scene_editor);
 
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplWin32_NewFrame();
@@ -1599,6 +1980,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         drawCircuitPanel();
         drawObservationPanel();
         drawRecordingPanel();
+        drawCoursesPanel();
         drawScriptPanel();
 
         ImGui::SetNextWindowPos(ImVec2(10.0f, 810.0f), ImGuiCond_FirstUseEver);
@@ -1635,9 +2017,25 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
         SwapBuffers(device_context);
 
-        const double car_x = car_demo.car().chassisBody() != nullptr
-            ? car_demo.car().chassisBody()->position.x
-            : 0.0;
+        double status_value = 0.0;
+        std::wstring status_name = L"idle";
+        if (g_demo.kind == "car" && g_demo.car != nullptr)
+        {
+            const srp::physics::RigidBodyState* chassis =
+                g_demo.car->car().chassisBody();
+            status_value = chassis != nullptr ? chassis->position.x : 0.0;
+            status_name = L"car_x";
+        }
+        else if (g_demo.kind == "drone" && g_demo.drone != nullptr)
+        {
+            status_value = g_demo.drone->drone().altitude();
+            status_name = L"altitude";
+        }
+        else if (g_demo.kind == "arm" && g_demo.arm != nullptr)
+        {
+            status_value = g_demo.arm->arm().endEffectorPosition().y;
+            status_name = L"effector_y";
+        }
 
         std::wstring title =
             L"SRPlatform | " +
@@ -1645,7 +2043,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
             L" | sim=" + std::to_wstring(g_simulation_ticks) +
             L" frames=" + std::to_wstring(g_render_frames) +
             L" alpha=" + std::to_wstring(update.alpha) +
-            L" car_x=" + std::to_wstring(car_x);
+            L" " + status_name + L"=" + std::to_wstring(status_value);
         SetWindowTextW(window, title.c_str());
 
         Sleep(1);
@@ -1654,7 +2052,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
     g_scene_editor = nullptr;
     g_circuit_editor = nullptr;
     g_script_editor = nullptr;
-    g_car_demo = nullptr;
+    g_course_catalog_ptr = nullptr;
     ImGui_ImplOpenGL2_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();

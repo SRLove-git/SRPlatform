@@ -1,6 +1,8 @@
 #pragma once
 
 #include "bridge/car_entity.hpp"
+#include "bridge/arm_entity.hpp"
+#include "bridge/drone_entity.hpp"
 #include "editor/time_series.hpp"
 
 #include <string>
@@ -60,6 +62,14 @@ void sampleCarTelemetry(
     const bridge::CarEntity& car,
     const physics::PhysicsWorld& world,
     double dt,
+    SimObserver& observer);
+
+void sampleDroneTelemetry(
+    const bridge::DroneEntity& drone,
+    SimObserver& observer);
+
+void sampleArmTelemetry(
+    const bridge::ArmEntity& arm,
     SimObserver& observer);
 
 }  // namespace srp::editor

@@ -1,0 +1,14 @@
+{
+  "id": "rc_car",
+  "title": "RC 小车",
+  "description": "用 Lua 脚本控制小车前进、停止、转向。",
+  "entity": "car",
+  "script": "assets/scripts/courses/rc_car.lua",
+  "objective": "让小车完成前进 -> 停车 -> 转向 -> 倒车循环",
+  "channels": [
+    "battery_voltage_v",
+    "motor_current_a",
+    "chassis_speed_m_s",
+    "sensor_distance_front_m"
+  ]
+}
