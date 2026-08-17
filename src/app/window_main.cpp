@@ -2,6 +2,7 @@
 #include "core/config/app_config.hpp"
 #include "core/loop/fixed_step_loop.hpp"
 #include "core/logging.hpp"
+#include "editor/circuit_editor.hpp"
 #include "editor/scene_editor.hpp"
 #include "rendering/debug_draw.hpp"
 #include "scripting/car_closed_loop_demo.hpp"
@@ -11,7 +12,10 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 #include <windows.h>
@@ -52,6 +56,54 @@ bool g_move_mode = false;
 bool g_move_dragging = false;
 
 srp::editor::SceneEditor* g_scene_editor = nullptr;
+srp::editor::CircuitEditor* g_circuit_editor = nullptr;
+std::optional<srp::circuit::ComponentType> g_circuit_placement;
+
+constexpr float kCircuitScale = 60.0f;
+
+const char* shortComponentName(srp::circuit::ComponentType type)
+{
+    switch (type)
+    {
+    case srp::circuit::ComponentType::kResistor:
+        return "R";
+    case srp::circuit::ComponentType::kCapacitor:
+        return "C";
+    case srp::circuit::ComponentType::kInductor:
+        return "L";
+    case srp::circuit::ComponentType::kVoltageSource:
+        return "V";
+    case srp::circuit::ComponentType::kCurrentSource:
+        return "I";
+    case srp::circuit::ComponentType::kDiode:
+        return "D";
+    case srp::circuit::ComponentType::kSwitch:
+        return "SW";
+    case srp::circuit::ComponentType::kDigitalSource:
+        return "DIG";
+    case srp::circuit::ComponentType::kLogicGate:
+        return "GATE";
+    case srp::circuit::ComponentType::kDFlipFlop:
+        return "DFF";
+    case srp::circuit::ComponentType::kPwmSource:
+        return "PWM";
+    }
+    return "?";
+}
+
+ImVec2 circuitToScreen(const srp::math::Vec2& logical, const ImVec2& origin)
+{
+    return ImVec2(
+        origin.x + static_cast<float>(logical.x) * kCircuitScale,
+        origin.y + static_cast<float>(logical.y) * kCircuitScale);
+}
+
+srp::math::Vec2 screenToCircuit(const ImVec2& screen, const ImVec2& origin)
+{
+    return srp::math::Vec2(
+        (screen.x - origin.x) / kCircuitScale,
+        (screen.y - origin.y) / kCircuitScale);
+}
 
 constexpr const char* kCarControllerScript =
     "elapsed = 0\n"
@@ -285,6 +337,317 @@ void renderScene(
     }
 }
 
+void drawCircuitPanel()
+{
+    if (g_circuit_editor == nullptr)
+    {
+        return;
+    }
+
+    ImGui::SetNextWindowPos(ImVec2(10.0f, 440.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(520.0f, 320.0f), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Circuit");
+
+    constexpr srp::circuit::ComponentType kPalette[] = {
+        srp::circuit::ComponentType::kResistor,
+        srp::circuit::ComponentType::kCapacitor,
+        srp::circuit::ComponentType::kInductor,
+        srp::circuit::ComponentType::kVoltageSource,
+        srp::circuit::ComponentType::kCurrentSource,
+        srp::circuit::ComponentType::kDiode,
+        srp::circuit::ComponentType::kSwitch,
+        srp::circuit::ComponentType::kPwmSource,
+        srp::circuit::ComponentType::kDigitalSource,
+        srp::circuit::ComponentType::kLogicGate,
+        srp::circuit::ComponentType::kDFlipFlop};
+
+    for (const srp::circuit::ComponentType type : kPalette)
+    {
+        const bool armed = g_circuit_placement.has_value() && *g_circuit_placement == type;
+        if (ImGui::Button(shortComponentName(type)))
+        {
+            g_circuit_placement = type;
+        }
+        if (armed)
+        {
+            ImGui::SameLine();
+            ImGui::Text("<- click canvas to place");
+        }
+        else
+        {
+            ImGui::SameLine();
+        }
+    }
+
+    if (ImGui::Button("Export"))
+    {
+        std::ofstream stream("assets/circuits/editor_netlist.json");
+        stream << g_circuit_editor->toNetlistJson().dump(2);
+        srp::core::logInfo("exported circuit to assets/circuits/editor_netlist.json");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Load"))
+    {
+        std::ifstream stream("assets/circuits/editor_netlist.json");
+        if (!stream.is_open())
+        {
+            srp::core::logError("no saved circuit to load");
+        }
+        else
+        {
+            nlohmann::json json;
+            stream >> json;
+            std::string error;
+            if (!g_circuit_editor->loadNetlistJson(json, error))
+            {
+                srp::core::logError("failed to load circuit: " + error);
+            }
+            else
+            {
+                srp::core::logInfo("loaded circuit from assets/circuits/editor_netlist.json");
+            }
+        }
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("Components: %zu", g_circuit_editor->circuit().components().size());
+
+    const ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+    ImGui::InvisibleButton("##circuit_canvas", canvas_size);
+    const bool canvas_clicked = ImGui::IsItemClicked(ImGuiMouseButton_Left);
+    const bool canvas_right_clicked = ImGui::IsItemClicked(ImGuiMouseButton_Right);
+    const ImVec2 canvas_min = ImGui::GetItemRectMin();
+    const ImVec2 canvas_max = ImGui::GetItemRectMax();
+    const ImVec2 canvas_origin = ImVec2(
+        (canvas_min.x + canvas_max.x) * 0.5f,
+        (canvas_min.y + canvas_max.y) * 0.5f);
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    draw_list->AddRectFilled(
+        canvas_min,
+        canvas_max,
+        IM_COL32(18, 20, 26, 255));
+
+    // Wires: every node connects its ports.
+    std::unordered_map<srp::circuit::NodeId, std::vector<srp::circuit::PortId>> node_ports;
+    for (const srp::circuit::Port& port : g_circuit_editor->circuit().ports())
+    {
+        if (port.node != srp::circuit::kInvalidNodeId)
+        {
+            node_ports[port.node].push_back(port.id);
+        }
+    }
+    for (const auto& [node_id, ports] : node_ports)
+    {
+        if (ports.size() < 2)
+        {
+            continue;
+        }
+        const ImVec2 first = circuitToScreen(
+            g_circuit_editor->portPosition(ports.front()),
+            canvas_origin);
+        for (std::size_t i = 1; i < ports.size(); ++i)
+        {
+            const ImVec2 next = circuitToScreen(
+                g_circuit_editor->portPosition(ports[i]),
+                canvas_origin);
+            draw_list->AddLine(first, next, IM_COL32(90, 170, 220, 255), 2.0f);
+        }
+        if (node_id == srp::circuit::kGroundNodeId)
+        {
+            draw_list->AddRectFilled(
+                ImVec2(first.x - 6.0f, first.y + 4.0f),
+                ImVec2(first.x + 6.0f, first.y + 8.0f),
+                IM_COL32(120, 130, 150, 255));
+        }
+    }
+
+    // Pending wire preview.
+    const std::optional<srp::circuit::PortId> pending = g_circuit_editor->pendingWirePort();
+    if (pending.has_value())
+    {
+        const ImVec2 pending_screen = circuitToScreen(
+            g_circuit_editor->portPosition(*pending),
+            canvas_origin);
+        draw_list->AddLine(
+            pending_screen,
+            ImGui::GetIO().MousePos,
+            IM_COL32(90, 230, 120, 220),
+            2.0f);
+    }
+
+    for (const srp::circuit::Component& component : g_circuit_editor->circuit().components())
+    {
+        const srp::math::Vec2 position = g_circuit_editor->componentPosition(component.id);
+        const ImVec2 screen = circuitToScreen(position, canvas_origin);
+        const bool is_selected = g_circuit_editor->selected() == component.id;
+        const ImU32 body_color = IM_COL32(48, 52, 66, 255);
+        const ImU32 border_color = is_selected
+            ? IM_COL32(240, 210, 60, 255)
+            : IM_COL32(110, 120, 140, 255);
+        draw_list->AddRectFilled(
+            ImVec2(screen.x - 50.0f, screen.y - 24.0f),
+            ImVec2(screen.x + 50.0f, screen.y + 24.0f),
+            body_color);
+        draw_list->AddRect(
+            ImVec2(screen.x - 50.0f, screen.y - 24.0f),
+            ImVec2(screen.x + 50.0f, screen.y + 24.0f),
+            border_color,
+            4.0f);
+
+        const char* label = shortComponentName(component.definition.type);
+        const ImVec2 label_size = ImGui::CalcTextSize(label);
+        draw_list->AddText(
+            ImVec2(screen.x - label_size.x * 0.5f, screen.y - label_size.y * 0.5f),
+            IM_COL32(220, 225, 235, 255),
+            label);
+
+        for (const srp::circuit::PortId port_id : component.ports)
+        {
+            const srp::circuit::Port* port = g_circuit_editor->circuit().port(port_id);
+            const ImVec2 port_screen = circuitToScreen(
+                g_circuit_editor->portPosition(port_id),
+                canvas_origin);
+            const bool is_pending = pending.has_value() && *pending == port_id;
+            const ImU32 port_color = port != nullptr && port->node != srp::circuit::kInvalidNodeId
+                ? IM_COL32(90, 200, 120, 255)
+                : IM_COL32(200, 90, 90, 255);
+            draw_list->AddCircleFilled(port_screen, 4.0f, port_color);
+            if (is_pending)
+            {
+                draw_list->AddCircle(port_screen, 7.0f, IM_COL32(90, 230, 120, 255), 0, 2.0f);
+            }
+        }
+    }
+
+    if (canvas_clicked)
+    {
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        const srp::math::Vec2 logical = screenToCircuit(mouse, canvas_origin);
+
+        if (g_circuit_placement.has_value())
+        {
+            const srp::circuit::ComponentId id = g_circuit_editor->addComponent(
+                *g_circuit_placement,
+                logical);
+            if (id != srp::circuit::kInvalidComponentId)
+            {
+                g_circuit_editor->select(id);
+            }
+            g_circuit_placement.reset();
+        }
+        else
+        {
+            srp::circuit::PortId hit_port = srp::circuit::kInvalidPortId;
+            float best_distance = 12.0f;
+            for (const srp::circuit::Port& port : g_circuit_editor->circuit().ports())
+            {
+                const ImVec2 port_screen = circuitToScreen(
+                    g_circuit_editor->portPosition(port.id),
+                    canvas_origin);
+                const float distance = std::hypot(
+                    mouse.x - port_screen.x,
+                    mouse.y - port_screen.y);
+                if (distance < best_distance)
+                {
+                    best_distance = distance;
+                    hit_port = port.id;
+                }
+            }
+
+            if (hit_port != srp::circuit::kInvalidPortId)
+            {
+                if (pending.has_value() && *pending != hit_port)
+                {
+                    g_circuit_editor->wire(*pending, hit_port);
+                }
+                else
+                {
+                    g_circuit_editor->setPendingWirePort(hit_port);
+                }
+            }
+            else
+            {
+                srp::circuit::ComponentId hit_component = srp::circuit::kInvalidComponentId;
+                for (const srp::circuit::Component& component :
+                     g_circuit_editor->circuit().components())
+                {
+                    const srp::math::Vec2 distance =
+                        g_circuit_editor->componentPosition(component.id) - logical;
+                    if (std::abs(distance.x) <= 1.0 && std::abs(distance.y) <= 0.7)
+                    {
+                        hit_component = component.id;
+                        break;
+                    }
+                }
+
+                if (hit_component != srp::circuit::kInvalidComponentId)
+                {
+                    g_circuit_editor->select(hit_component);
+                }
+                else
+                {
+                    g_circuit_editor->deselect();
+                    g_circuit_editor->cancelWire();
+                }
+            }
+        }
+    }
+
+    if (canvas_right_clicked)
+    {
+        g_circuit_placement.reset();
+        g_circuit_editor->cancelWire();
+    }
+
+    if (ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_Delete))
+    {
+        const std::optional<srp::circuit::ComponentId> selected = g_circuit_editor->selected();
+        if (selected.has_value())
+        {
+            g_circuit_editor->removeComponent(*selected);
+        }
+    }
+
+    if (pending.has_value())
+    {
+        ImGui::Text(
+            "Wiring: port %u - click another port to connect (right click cancels)",
+            *pending);
+    }
+    else if (g_circuit_placement.has_value())
+    {
+        ImGui::Text(
+            "Placing %s - click the canvas (right click cancels)",
+            shortComponentName(*g_circuit_placement));
+    }
+
+    const std::optional<srp::circuit::ComponentId> selected = g_circuit_editor->selected();
+    if (selected.has_value())
+    {
+        const srp::circuit::Component* component =
+            g_circuit_editor->circuit().component(*selected);
+        if (component != nullptr)
+        {
+            ImGui::Text("Selected: %s", component->definition.name.c_str());
+            for (const srp::circuit::PortId port_id : component->ports)
+            {
+                const srp::circuit::Port* port = g_circuit_editor->circuit().port(port_id);
+                if (port != nullptr)
+                {
+                    const std::string node_name =
+                        port->node != srp::circuit::kInvalidNodeId &&
+                                g_circuit_editor->circuit().node(port->node) != nullptr
+                            ? g_circuit_editor->circuit().node(port->node)->name
+                            : "floating";
+                    ImGui::Text("  %s -> %s", port->name.c_str(), node_name.c_str());
+                }
+            }
+        }
+    }
+
+    ImGui::End();
+}
+
 void drawScenePanel()
 {
     if (g_scene_editor == nullptr)
@@ -444,6 +807,11 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_
             else if (w_param == VK_ESCAPE)
             {
                 g_scene_editor->deselect();
+                if (g_circuit_editor != nullptr)
+                {
+                    g_circuit_editor->cancelWire();
+                }
+                g_circuit_placement.reset();
             }
         }
         return 0;
@@ -555,6 +923,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
     scene_editor.addBody(srp::editor::ShapeKind::kBox);
     scene_editor.addBody(srp::editor::ShapeKind::kSphere);
 
+    srp::editor::CircuitEditor circuit_editor;
+    g_circuit_editor = &circuit_editor;
+
     srp::scripting::CarClosedLoopDemo car_demo;
     if (!car_demo.loadScript("controller", kCarControllerScript))
     {
@@ -619,6 +990,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         ImGui::NewFrame();
 
         drawScenePanel();
+        drawCircuitPanel();
 
         ImGui::Begin("Tool UI");
         ImGui::Text("Simulation ticks: %llu", g_simulation_ticks);
@@ -645,6 +1017,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
     }
 
     g_scene_editor = nullptr;
+    g_circuit_editor = nullptr;
     ImGui_ImplOpenGL2_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();

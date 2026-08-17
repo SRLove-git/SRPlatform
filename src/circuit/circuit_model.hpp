@@ -17,8 +17,16 @@ public:
     NodeId addNode(std::string name = {});
     ComponentId addComponent(const ComponentDefinition& definition);
 
+    // Removes a component, detaches its ports, and prunes nodes that no
+    // longer have any port (the ground node is never pruned). Returns false
+    // when the id does not exist.
+    bool removeComponent(ComponentId id);
+
     bool connectPort(PortId port_id, NodeId node_id);
     bool disconnectPort(PortId port_id);
+
+    // Removes nodes that have no connected port (the ground node is kept).
+    void pruneEmptyNodes();
 
     Node* node(NodeId id);
     const Node* node(NodeId id) const;

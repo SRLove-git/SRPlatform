@@ -285,6 +285,7 @@ srp_enable_warnings(srp_rendering)
 
 add_library(srp_editor
     src/editor/scene_editor.cpp
+    src/editor/circuit_editor.cpp
 )
 
 target_include_directories(srp_editor
@@ -296,6 +297,7 @@ target_link_libraries(srp_editor
     PUBLIC
         srp_core
         srp_physics
+        srp_circuit
 )
 
 srp_enable_warnings(srp_editor)
@@ -382,6 +384,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/scripting/mod_entity_demo_test.cpp
         tests/unit/scripting/script_control_test.cpp
         tests/unit/editor/scene_editor_test.cpp
+        tests/unit/editor/circuit_editor_test.cpp
     )
 
     target_link_libraries(srp_unit_tests

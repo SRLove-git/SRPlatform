@@ -338,6 +338,11 @@ std::optional<CircuitModel> loadNetlist(
             }
 
             const std::string node_name = port_entry.get<std::string>();
+            if (node_name.empty())
+            {
+                // Empty port entries describe intentionally unwired ports.
+                continue;
+            }
             const auto node_it = node_ids.find(node_name);
             NodeId node_id;
             if (node_it == node_ids.end())

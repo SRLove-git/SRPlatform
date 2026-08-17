@@ -180,6 +180,82 @@ ComponentId CircuitModel::addComponent(const ComponentDefinition& definition)
     return component_id;
 }
 
+bool CircuitModel::removeComponent(ComponentId id)
+{
+    const auto component_it = component_indices_.find(id);
+    if (component_it == component_indices_.end())
+    {
+        return false;
+    }
+
+    const std::size_t component_index = component_it->second;
+    const std::vector<PortId> removed_ports = components_[component_index].ports;
+
+    // Detach every port of the component from its node first.
+    for (const PortId port_id : removed_ports)
+    {
+        const auto port_it = port_indices_.find(port_id);
+        if (port_it != port_indices_.end())
+        {
+            detachPort(ports_[port_it->second]);
+        }
+    }
+
+    // Swap-erase the component and its ports, fixing the moved ids.
+    const std::size_t last_component = components_.size() - 1;
+    if (component_index != last_component)
+    {
+        components_[component_index] = std::move(components_[last_component]);
+        component_indices_[components_[component_index].id] = component_index;
+    }
+    components_.pop_back();
+    component_indices_.erase(id);
+
+    for (const PortId port_id : removed_ports)
+    {
+        const auto port_it = port_indices_.find(port_id);
+        if (port_it == port_indices_.end())
+        {
+            continue;
+        }
+
+        const std::size_t port_index = port_it->second;
+        const std::size_t last_port = ports_.size() - 1;
+        if (port_index != last_port)
+        {
+            ports_[port_index] = std::move(ports_[last_port]);
+            port_indices_[ports_[port_index].id] = port_index;
+        }
+        ports_.pop_back();
+        port_indices_.erase(port_id);
+    }
+
+    pruneEmptyNodes();
+    return true;
+}
+
+void CircuitModel::pruneEmptyNodes()
+{
+    for (auto it = node_indices_.begin(); it != node_indices_.end();)
+    {
+        if (it->first == kGroundNodeId || !nodes_[it->second].ports.empty())
+        {
+            ++it;
+            continue;
+        }
+
+        const std::size_t node_index = it->second;
+        const std::size_t last_node = nodes_.size() - 1;
+        if (node_index != last_node)
+        {
+            nodes_[node_index] = std::move(nodes_[last_node]);
+            node_indices_[nodes_[node_index].id] = node_index;
+        }
+        nodes_.pop_back();
+        it = node_indices_.erase(it);
+    }
+}
+
 bool CircuitModel::connectPort(PortId port_id, NodeId node_id)
 {
     Port* target_port = port(port_id);
