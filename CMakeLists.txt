@@ -111,6 +111,22 @@ target_include_directories(srp_circuit
 
 srp_enable_warnings(srp_circuit)
 
+add_library(srp_bridge
+    src/bridge/bridge.cpp
+)
+
+target_include_directories(srp_bridge
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(srp_bridge
+    PUBLIC
+        srp_core
+)
+
+srp_enable_warnings(srp_bridge)
+
 add_library(srp_rendering
     src/rendering/debug_draw.cpp
 )
@@ -179,6 +195,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/circuit/nonlinear_test.cpp
         tests/unit/circuit/digital_solver_test.cpp
         tests/unit/circuit/regression_test.cpp
+        tests/unit/bridge/bridge_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
@@ -186,6 +203,7 @@ if(SRP_BUILD_TESTS)
             srp_core
             srp_physics
             srp_circuit
+            srp_bridge
             GTest::gtest_main
     )
 
