@@ -411,6 +411,13 @@ bool validateDynamicComponent(const Component& component)
                parameters.off_resistance > 0.0;
     }
 
+    if (component.definition.type == ComponentType::kDigitalSource ||
+        component.definition.type == ComponentType::kLogicGate ||
+        component.definition.type == ComponentType::kDFlipFlop)
+    {
+        return false;
+    }
+
     const auto& parameters =
         std::get<SwitchParameters>(component.definition.parameters);
     return finite(parameters.on_resistance) &&

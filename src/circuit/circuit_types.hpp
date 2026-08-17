@@ -34,7 +34,21 @@ enum class ComponentType
     kVoltageSource,
     kCurrentSource,
     kDiode,
-    kSwitch
+    kSwitch,
+    kDigitalSource,
+    kLogicGate,
+    kDFlipFlop
+};
+
+enum class LogicGateType
+{
+    kNot,
+    kAnd,
+    kOr,
+    kNand,
+    kNor,
+    kXor,
+    kXnor
 };
 
 struct ResistorParameters
@@ -78,6 +92,22 @@ struct SwitchParameters
     Resistance off_resistance{1e9};
 };
 
+struct DigitalSourceParameters
+{
+    bool initial_value{false};
+    double frequency_hz{0.0};
+};
+
+struct LogicGateParameters
+{
+    LogicGateType type{LogicGateType::kAnd};
+};
+
+struct DFlipFlopParameters
+{
+    bool initial_q{false};
+};
+
 using ComponentParameters = std::variant<
     ResistorParameters,
     CapacitorParameters,
@@ -85,7 +115,10 @@ using ComponentParameters = std::variant<
     VoltageSourceParameters,
     CurrentSourceParameters,
     DiodeParameters,
-    SwitchParameters>;
+    SwitchParameters,
+    DigitalSourceParameters,
+    LogicGateParameters,
+    DFlipFlopParameters>;
 
 struct ComponentDefinition
 {

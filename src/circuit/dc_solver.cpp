@@ -135,6 +135,13 @@ std::optional<DcAnalysisResult> solveDc(const CircuitModel& circuit)
     std::size_t inductor_count = 0;
     for (const Component& component : circuit.components())
     {
+        if (component.definition.type == ComponentType::kDigitalSource ||
+            component.definition.type == ComponentType::kLogicGate ||
+            component.definition.type == ComponentType::kDFlipFlop)
+        {
+            return std::nullopt;
+        }
+
         if (component.ports.size() != 2)
         {
             return std::nullopt;

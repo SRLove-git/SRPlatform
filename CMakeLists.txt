@@ -101,6 +101,7 @@ add_library(srp_circuit
     src/circuit/linear_solver.cpp
     src/circuit/dc_solver.cpp
     src/circuit/transient_solver.cpp
+    src/circuit/digital_solver.cpp
 )
 
 target_include_directories(srp_circuit
@@ -176,6 +177,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/circuit/transient_solver_test.cpp
         tests/unit/circuit/source_test.cpp
         tests/unit/circuit/nonlinear_test.cpp
+        tests/unit/circuit/digital_solver_test.cpp
     )
 
     target_link_libraries(srp_unit_tests

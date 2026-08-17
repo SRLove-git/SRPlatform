@@ -34,6 +34,12 @@ bool matchesType(ComponentType type, const ComponentParameters& parameters)
         return std::holds_alternative<DiodeParameters>(parameters);
     case ComponentType::kSwitch:
         return std::holds_alternative<SwitchParameters>(parameters);
+    case ComponentType::kDigitalSource:
+        return std::holds_alternative<DigitalSourceParameters>(parameters);
+    case ComponentType::kLogicGate:
+        return std::holds_alternative<LogicGateParameters>(parameters);
+    case ComponentType::kDFlipFlop:
+        return std::holds_alternative<DFlipFlopParameters>(parameters);
     }
 
     return false;
@@ -57,6 +63,12 @@ const char* componentTypeName(ComponentType type)
         return "Diode";
     case ComponentType::kSwitch:
         return "Switch";
+    case ComponentType::kDigitalSource:
+        return "DigitalSource";
+    case ComponentType::kLogicGate:
+        return "LogicGate";
+    case ComponentType::kDFlipFlop:
+        return "DFlipFlop";
     }
 
     return "Unknown";
@@ -74,6 +86,12 @@ std::size_t defaultPortCount(ComponentType type)
     case ComponentType::kDiode:
     case ComponentType::kSwitch:
         return 2;
+    case ComponentType::kDigitalSource:
+        return 1;
+    case ComponentType::kLogicGate:
+        return 3;
+    case ComponentType::kDFlipFlop:
+        return 4;
     }
 
     return 0;
@@ -94,6 +112,12 @@ std::vector<std::string> defaultPortNames(ComponentType type)
         return {"anode", "cathode"};
     case ComponentType::kSwitch:
         return {"terminal_a", "terminal_b"};
+    case ComponentType::kDigitalSource:
+        return {"output"};
+    case ComponentType::kLogicGate:
+        return {"input_a", "input_b", "output"};
+    case ComponentType::kDFlipFlop:
+        return {"d", "clock", "q", "qbar"};
     }
 
     return {};
