@@ -138,6 +138,7 @@ add_library(srp_bridge
     src/bridge/battery_model.cpp
     src/bridge/bridge.cpp
     src/bridge/car_entity.cpp
+    src/bridge/car_control_bus.cpp
     src/bridge/dc_motor_model.cpp
     src/bridge/state_recorder.cpp
 )
@@ -156,6 +157,7 @@ target_link_libraries(srp_bridge
 srp_enable_warnings(srp_bridge)
 
 add_library(srp_scripting
+    src/scripting/car_closed_loop_demo.cpp
     src/scripting/lua_script_host.cpp
 )
 
@@ -249,6 +251,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/bridge/dc_motor_model_test.cpp
         tests/unit/bridge/state_recorder_test.cpp
         tests/unit/scripting/lua_script_host_test.cpp
+        tests/unit/scripting/car_closed_loop_demo_test.cpp
         tests/unit/scripting/script_control_test.cpp
     )
 

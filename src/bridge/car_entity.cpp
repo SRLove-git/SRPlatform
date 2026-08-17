@@ -23,6 +23,8 @@ struct CarEntity::Impl
     StateRecorder recorder;
     double elapsed_time{0.0};
     double throttle{0.0};
+    double steering{0.0};
+    double heading{0.0};
 
     explicit Impl(const CarParameters& values)
         : parameters(values),
@@ -107,6 +109,21 @@ double CarEntity::throttle() const
     return impl_->throttle;
 }
 
+void CarEntity::setSteering(double value)
+{
+    impl_->steering = std::clamp(value, -1.0, 1.0);
+}
+
+double CarEntity::steering() const
+{
+    return impl_->steering;
+}
+
+double CarEntity::heading() const
+{
+    return impl_->heading;
+}
+
 void CarEntity::step(double dt)
 {
     if (dt <= 0.0)
@@ -144,6 +161,14 @@ void CarEntity::step(double dt)
     impl_->elapsed_time += dt;
 
     const physics::RigidBodyState* chassis_state = chassisBody();
+    if (chassis_state != nullptr)
+    {
+        constexpr double kMaxSteeringRate = 1.0;
+        const double speed_direction =
+            (impl_->throttle > 0.0) - (impl_->throttle < 0.0);
+        impl_->heading += impl_->steering * kMaxSteeringRate * speed_direction * dt;
+    }
+
     CarStateSample sample;
     sample.time_s = impl_->elapsed_time;
     sample.battery_voltage_v = batteryVoltage();

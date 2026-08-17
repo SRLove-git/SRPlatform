@@ -41,6 +41,9 @@ public:
 
     void setThrottle(double value);
     double throttle() const;
+    void setSteering(double value);
+    double steering() const;
+    double heading() const;
 
     void step(double dt);
 
