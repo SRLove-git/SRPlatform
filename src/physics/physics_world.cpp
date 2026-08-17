@@ -47,6 +47,50 @@ math::Vec3 velocityAtPoint(const RigidBodyState& state, const math::Vec3& point)
            glm::cross(state.angular_velocity, point - state.position);
 }
 
+double mass(const RigidBodyState& state)
+{
+    if (state.type != RigidBodyType::kDynamic || state.mass <= 0.0)
+    {
+        return 0.0;
+    }
+
+    return state.mass;
+}
+
+double inertiaAboutAxis(const RigidBodyState& state, const math::Vec3& local_axis)
+{
+    if (state.type != RigidBodyType::kDynamic)
+    {
+        return 0.0;
+    }
+
+    const double inertia = glm::dot(local_axis, state.inertia_local * local_axis);
+    return std::max(0.0, inertia);
+}
+
+const Contact* findContact(const std::vector<Contact>& contacts, BodyId body_id)
+{
+    for (const Contact& contact : contacts)
+    {
+        if (contact.body_a == body_id || contact.body_b == body_id)
+        {
+            return &contact;
+        }
+    }
+
+    return nullptr;
+}
+
+math::Vec3 normalPointingToBody(const Contact& contact, BodyId body_id)
+{
+    if (contact.body_b == body_id)
+    {
+        return contact.point.normal;
+    }
+
+    return -contact.point.normal;
+}
+
 }  // namespace
 
 PhysicsWorld::PhysicsWorld() = default;
@@ -295,13 +339,99 @@ void PhysicsWorld::solveContacts(const std::vector<Contact>& contacts)
     }
 }
 
-void PhysicsWorld::solveJoints()
+void PhysicsWorld::solveWheelJoint(const Joint& joint, double dt)
+{
+    if (dt <= 0.0)
+    {
+        return;
+    }
+
+    RigidBodyState* chassis = body(joint.body_a);
+    RigidBodyState* wheel = body(joint.body_b);
+    if (chassis == nullptr || wheel == nullptr)
+    {
+        return;
+    }
+
+    const double chassis_mass = mass(*chassis);
+    const double wheel_mass = mass(*wheel);
+    if (chassis_mass <= 0.0 || wheel_mass <= 0.0)
+    {
+        return;
+    }
+
+    const Contact* contact = findContact(last_contacts_, joint.body_b);
+    if (contact == nullptr)
+    {
+        return;
+    }
+
+    const math::Vec3 normal = normalPointingToBody(*contact, joint.body_b);
+    const math::Vec3 axis = glm::normalize(wheel->orientation * joint.axis_local_b);
+    math::Vec3 forward = -glm::cross(axis, normal);
+
+    const double forward_length = glm::length(forward);
+    if (forward_length < 1e-12)
+    {
+        return;
+    }
+    forward /= forward_length;
+
+    const double radius = joint.wheel_radius;
+    if (radius <= 0.0)
+    {
+        return;
+    }
+
+    const math::Vec3 axis_local = glm::normalize(joint.axis_local_b);
+    const double inertia_axis = inertiaAboutAxis(*wheel, axis_local);
+    if (inertia_axis <= 0.0)
+    {
+        return;
+    }
+
+    const double effective_mass =
+        chassis_mass + wheel_mass + inertia_axis / (radius * radius);
+    if (effective_mass <= 0.0)
+    {
+        return;
+    }
+
+    const double chassis_speed = glm::dot(chassis->linear_velocity, forward);
+    const double wheel_speed = glm::dot(wheel->linear_velocity, forward);
+    const double angular_speed = glm::dot(wheel->angular_velocity, axis);
+
+    const double generalized_momentum =
+        chassis_mass * chassis_speed +
+        wheel_mass * wheel_speed +
+        inertia_axis / radius * angular_speed;
+
+    double rolling_speed = generalized_momentum / effective_mass;
+    rolling_speed +=
+        (joint.drive_torque / radius) / effective_mass * dt;
+
+    chassis->linear_velocity -= forward * chassis_speed;
+    wheel->linear_velocity -= forward * wheel_speed;
+    wheel->angular_velocity -= axis * angular_speed;
+
+    chassis->linear_velocity += forward * rolling_speed;
+    wheel->linear_velocity += forward * rolling_speed;
+    wheel->angular_velocity += axis * (rolling_speed / radius);
+}
+
+void PhysicsWorld::solveJoints(double dt)
 {
     constexpr double kPositionCorrection = 1.0;
     constexpr double kVelocityCorrection = 1.0;
 
     for (const Joint& joint : joints_)
     {
+        if (joint.type == JointType::kWheel)
+        {
+            solveWheelJoint(joint, dt);
+            continue;
+        }
+
         RigidBodyState* body_a = body(joint.body_a);
         RigidBodyState* body_b = body(joint.body_b);
 
@@ -366,7 +496,7 @@ void PhysicsWorld::step(double dt)
 
     last_contacts_ = generateContacts();
     solveContacts(last_contacts_);
-    solveJoints();
+    solveJoints(dt);
 }
 
 }  // namespace srp::physics

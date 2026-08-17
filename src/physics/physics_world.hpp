@@ -49,7 +49,8 @@ private:
 
     std::vector<Contact> generateContacts() const;
     void solveContacts(const std::vector<Contact>& contacts);
-    void solveJoints();
+    void solveJoints(double dt);
+    void solveWheelJoint(const Joint& joint, double dt);
 };
 
 }  // namespace srp::physics

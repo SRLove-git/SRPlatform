@@ -15,7 +15,8 @@ constexpr JointId kInvalidJointId = 0;
 enum class JointType
 {
     kFixed,
-    kHinge
+    kHinge,
+    kWheel
 };
 
 struct JointDefinition
@@ -27,6 +28,8 @@ struct JointDefinition
     math::Vec3 anchor_local_b{0.0};
     math::Vec3 axis_local_a{0.0, 1.0, 0.0};
     math::Vec3 axis_local_b{0.0, 1.0, 0.0};
+    math::Scalar wheel_radius{0.3};
+    math::Scalar drive_torque{0.0};
 };
 
 using Joint = JointDefinition;

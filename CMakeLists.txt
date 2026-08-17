@@ -189,6 +189,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/physics/contact_solver_test.cpp
         tests/unit/physics/restitution_friction_test.cpp
         tests/unit/physics/joint_test.cpp
+        tests/unit/physics/wheel_constraint_test.cpp
         tests/unit/physics/regression_test.cpp
         tests/unit/circuit/circuit_model_test.cpp
         tests/unit/circuit/dc_solver_test.cpp
