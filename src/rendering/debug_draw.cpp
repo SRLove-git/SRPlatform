@@ -186,4 +186,45 @@ void drawContactPoint(const srp::physics::ContactPoint& contact_point)
     glEnd();
 }
 
+void drawMesh(
+    const srp::mod::GltfMesh& mesh,
+    const srp::math::Vec3& position,
+    const srp::math::Quat& orientation,
+    double scale)
+{
+    glPushMatrix();
+    applyTransform(position, orientation);
+    glScaled(scale, scale, scale);
+    glColor3d(0.7, 0.7, 0.7);
+
+    glBegin(GL_TRIANGLES);
+    for (std::size_t i = 0; i + 2 < mesh.indices.size(); i += 3)
+    {
+        for (int corner = 0; corner < 3; ++corner)
+        {
+            const std::uint32_t index = mesh.indices[i + corner];
+            if (index >= mesh.vertices.size())
+            {
+                continue;
+            }
+
+            const srp::mod::GltfVertex& vertex = mesh.vertices[index];
+            if (mesh.has_normals)
+            {
+                glNormal3d(
+                    vertex.normal.x,
+                    vertex.normal.y,
+                    vertex.normal.z);
+            }
+            glVertex3d(
+                vertex.position.x,
+                vertex.position.y,
+                vertex.position.z);
+        }
+    }
+    glEnd();
+
+    glPopMatrix();
+}
+
 }  // namespace srp::rendering

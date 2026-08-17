@@ -136,6 +136,7 @@ srp_enable_warnings(srp_circuit)
 
 add_library(srp_mod
     src/mod/mod_manifest.cpp
+    src/mod/gltf_model.cpp
 )
 
 target_include_directories(srp_mod
@@ -145,6 +146,7 @@ target_include_directories(srp_mod
 
 target_link_libraries(srp_mod
     PUBLIC
+        glm::glm
         nlohmann_json::nlohmann_json
 )
 
@@ -227,6 +229,8 @@ target_link_libraries(srp_rendering
         srp_physics
         opengl32
         glu32
+    PRIVATE
+        srp_mod
 )
 
 srp_enable_warnings(srp_rendering)
@@ -285,6 +289,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/control/pid_controller_test.cpp
         tests/unit/control/hover_controller_test.cpp
         tests/unit/mod/mod_manifest_test.cpp
+        tests/unit/mod/gltf_model_test.cpp
         tests/unit/bridge/battery_model_test.cpp
         tests/unit/bridge/bridge_test.cpp
         tests/unit/bridge/car_entity_test.cpp
