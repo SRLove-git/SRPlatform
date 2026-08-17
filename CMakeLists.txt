@@ -134,6 +134,22 @@ target_include_directories(srp_circuit
 
 srp_enable_warnings(srp_circuit)
 
+add_library(srp_mod
+    src/mod/mod_manifest.cpp
+)
+
+target_include_directories(srp_mod
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(srp_mod
+    PUBLIC
+        nlohmann_json::nlohmann_json
+)
+
+srp_enable_warnings(srp_mod)
+
 add_library(srp_control
     src/control/pid_controller.cpp
     src/control/hover_controller.cpp
@@ -268,6 +284,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/circuit/regression_test.cpp
         tests/unit/control/pid_controller_test.cpp
         tests/unit/control/hover_controller_test.cpp
+        tests/unit/mod/mod_manifest_test.cpp
         tests/unit/bridge/battery_model_test.cpp
         tests/unit/bridge/bridge_test.cpp
         tests/unit/bridge/car_entity_test.cpp
@@ -291,6 +308,7 @@ if(SRP_BUILD_TESTS)
             srp_physics
             srp_circuit
             srp_control
+            srp_mod
             srp_bridge
             srp_scripting
             GTest::gtest_main
