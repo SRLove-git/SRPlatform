@@ -312,6 +312,11 @@ math::Vec3 DistanceSensorModel::beamDirectionWorld() const
     return beam_direction_world_;
 }
 
+void DistanceSensorModel::setIgnoredBody(physics::BodyId id)
+{
+    ignored_body_ = id;
+}
+
 void DistanceSensorModel::update(const physics::PhysicsWorld& world)
 {
     double nearest = parameters_.max_range_m;
@@ -319,6 +324,11 @@ void DistanceSensorModel::update(const physics::PhysicsWorld& world)
 
     for (const physics::BodyId id : world.bodyIds())
     {
+        if (id == ignored_body_)
+        {
+            continue;
+        }
+
         const physics::RigidBodyState* body = world.body(id);
         const physics::CollisionShape* shape = world.shape(id);
         if (body == nullptr || shape == nullptr)

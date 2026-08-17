@@ -102,6 +102,8 @@ BodyId PhysicsWorld::createBody(const RigidBodyState& state, CollisionShape shap
     body_ids_.push_back(id);
     bodies_.push_back(state);
     shapes_.push_back(std::move(shape));
+    force_accumulators_.emplace_back(0.0);
+    torque_accumulators_.emplace_back(0.0);
     return id;
 }
 
@@ -203,6 +205,28 @@ void PhysicsWorld::setGravity(const math::Vec3& gravity)
 math::Vec3 PhysicsWorld::gravity() const
 {
     return gravity_;
+}
+
+void PhysicsWorld::applyForce(BodyId id, const math::Vec3& force)
+{
+    const auto it = body_indices_.find(id);
+    if (it == body_indices_.end())
+    {
+        return;
+    }
+
+    force_accumulators_[it->second] += force;
+}
+
+void PhysicsWorld::applyTorque(BodyId id, const math::Vec3& torque)
+{
+    const auto it = body_indices_.find(id);
+    if (it == body_indices_.end())
+    {
+        return;
+    }
+
+    torque_accumulators_[it->second] += torque;
 }
 
 std::vector<Contact> PhysicsWorld::generateContacts() const
@@ -502,14 +526,22 @@ void PhysicsWorld::solveJoints(double dt)
 
 void PhysicsWorld::step(double dt)
 {
-    for (RigidBodyState& state : bodies_)
+    for (std::size_t i = 0; i < bodies_.size(); ++i)
     {
+        RigidBodyState& state = bodies_[i];
         if (state.type != RigidBodyType::kDynamic)
         {
             continue;
         }
 
         state.linear_velocity += gravity_ * dt;
+        if (state.mass > 0.0)
+        {
+            state.linear_velocity +=
+                force_accumulators_[i] / state.mass * dt;
+            state.angular_velocity +=
+                inverseInertiaWorld(state) * torque_accumulators_[i] * dt;
+        }
         state.position += state.linear_velocity * dt;
 
         const math::Quat angular_velocity_quaternion(
@@ -525,6 +557,9 @@ void PhysicsWorld::step(double dt)
     last_contacts_ = generateContacts();
     solveContacts(last_contacts_);
     solveJoints(dt);
+
+    std::fill(force_accumulators_.begin(), force_accumulators_.end(), math::Vec3(0.0));
+    std::fill(torque_accumulators_.begin(), torque_accumulators_.end(), math::Vec3(0.0));
 }
 
 }  // namespace srp::physics

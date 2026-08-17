@@ -39,12 +39,19 @@ public:
     void setGravity(const math::Vec3& gravity);
     math::Vec3 gravity() const;
 
+    // Queues a world-frame force or torque on a body. Accumulated forces
+    // are integrated and cleared on the next step().
+    void applyForce(BodyId id, const math::Vec3& force);
+    void applyTorque(BodyId id, const math::Vec3& torque);
+
     void step(double dt);
 
 private:
     std::vector<BodyId> body_ids_;
     std::vector<RigidBodyState> bodies_;
     std::vector<CollisionShape> shapes_;
+    std::vector<math::Vec3> force_accumulators_;
+    std::vector<math::Vec3> torque_accumulators_;
     std::vector<Joint> joints_;
     std::vector<Contact> last_contacts_;
     std::unordered_map<BodyId, std::size_t> body_indices_;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/math/types.hpp"
+#include "physics/rigid_body.hpp"
 
 namespace srp::physics
 {
@@ -38,6 +39,10 @@ public:
     math::Vec3 origin() const;
     math::Vec3 beamDirectionWorld() const;
 
+    // Bodies with this id are skipped during update(). Use kInvalidBodyId
+    // (the default) to disable ignoring.
+    void setIgnoredBody(physics::BodyId id);
+
     // Re-measure against the current physics world.
     void update(const physics::PhysicsWorld& world);
 
@@ -57,6 +62,7 @@ private:
     math::Vec3 beam_direction_world_{0.0, -1.0, 0.0};
     bool detected_{false};
     double distance_m_{0.0};
+    physics::BodyId ignored_body_{physics::kInvalidBodyId};
 };
 
 }  // namespace srp::bridge
