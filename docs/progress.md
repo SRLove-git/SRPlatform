@@ -18,7 +18,7 @@
 | 3 | 第一台可控制小车 | 🚧 |
 | 4 | 无人机与传感器 | ✅ |
 | 5 | Mod 与资源系统 | ✅ |
-| 6 | 编辑器与学习体验 | 🚧 |
+| 6 | 编辑器与学习体验 | ✅ |
 | 7 | 稳定性、性能与发布 | ⬜ |
 
 ## Phase 0：项目规划与工程骨架
@@ -116,7 +116,7 @@
 | 6.5 | 实现仿真控制 | 暂停、单步、继续可用 | ✅ |
 | 6.6 | 实现录制与回放 | 可保存和回放仿真过程 | ✅ |
 | 6.7 | 提供示例课程 | RC 小车、循迹车、四旋翼、机械臂 | ✅ |
-| 6.8 | 提供发布打包 | 可生成独立可运行版本 | ⬜ |
+| 6.8 | 提供发布打包 | 可生成独立可运行版本 | ✅ |
 
 ## Phase 7：稳定性、性能与发布
 
@@ -150,3 +150,7 @@ Phase 6 已开始。6.1 场景编辑完成：新增 `srp_editor` 模块和 Scene
 6.6 录制与回放完成：新增 SimulationRecorder（按固定步记录刚体位姿并序列化 JSON）与 PlaybackController（相邻帧位置线性插值、四元数 slerp）。窗口应用新增 Recording 面板：录制/停止、保存/加载 `assets/recordings/last_sim.json`、回放播放/暂停/停止/时间滑块，回放期间自动暂停实时仿真。格式见 `docs/recording-format.md`。剩余 6.7-6.8。
 
 6.7 示例课程完成：新增课程系统（`assets/courses/*.json` + CourseCatalog，格式见 `docs/course-format.md`），窗口应用 Courses 面板可加载四门课程：RC 小车、循迹小车（左右距离传感器注入 Lua id 11/12 墙沿循迹）、四旋翼悬停、机械臂（新增运动学 ArmEntity 与舵机/关节传感器总线，Lua 驱动关节动作）。支持 `--course <id>` 启动参数，传感器覆盖机制允许编辑器层传感器直接暴露给脚本。剩余 6.8。
+
+6.8 发布打包完成：CMakeLists 增加 CPack ZIP 打包规则，`scripts/package.ps1` 可生成 `dist/SRPlatform-<version>-win64.zip`（可执行文件 + assets + docs + README，依赖仅系统 DLL）。已从解压包直接运行 `srp_window.exe`（四门课程均可加载）与 `srp_cli.exe` 验证独立可运行。
+
+Phase 6 全部完成：编辑器与学习体验（场景编辑、电路编辑、脚本编辑、观测面板、仿真控制、录制回放、示例课程、发布打包）8 项任务全部交付并上传。下一步是 Phase 7：稳定性、性能与发布。

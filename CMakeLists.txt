@@ -427,3 +427,29 @@ if(SRP_BUILD_TESTS)
         COMMAND srp_unit_tests
     )
 endif()
+
+# --- Release packaging -------------------------------------------------------
+
+install(TARGETS srp_window srp_cli
+    RUNTIME DESTINATION bin
+)
+
+install(DIRECTORY assets/
+    DESTINATION assets
+)
+
+install(DIRECTORY docs/
+    DESTINATION docs
+)
+
+install(FILES README.md CONTRIBUTING.md
+    DESTINATION .
+)
+
+set(CPACK_GENERATOR "ZIP")
+set(CPACK_PACKAGE_NAME "SRPlatform")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_FILE_NAME "SRPlatform-${PROJECT_VERSION}-win64")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "SRPlatform robotics simulation platform")
+
+include(CPack)

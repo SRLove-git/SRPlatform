@@ -1,5 +1,7 @@
 build/
 out/
+dist/
+_CPack_Packages/
 logs/
 .vs/
 .vscode/
