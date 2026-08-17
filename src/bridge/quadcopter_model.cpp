@@ -10,10 +10,10 @@ namespace
 
 // Rotor positions in the body frame for the "+" layout.
 constexpr std::array<math::Vec3, QuadcopterForceModel::kRotorCount> kRotorOffsets = {
-    math::Vec3(0.0, 0.0, 1.0),   // front
-    math::Vec3(1.0, 0.0, 0.0),   // right
-    math::Vec3(0.0, 0.0, -1.0),  // back
-    math::Vec3(-1.0, 0.0, 0.0)   // left
+    math::Vec3(1.0, 0.0, 0.0),   // front
+    math::Vec3(0.0, 0.0, -1.0),  // right
+    math::Vec3(-1.0, 0.0, 0.0),  // back
+    math::Vec3(0.0, 0.0, 1.0)    // left
 };
 
 // Spin direction about the +Y axis for each rotor. Adjacent rotors spin in

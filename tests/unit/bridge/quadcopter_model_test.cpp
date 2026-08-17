@@ -67,12 +67,12 @@ TEST(BridgeQuadcopterModel, DifferentialSpeedProducesPitchAndRoll)
     const double back_thrust = quad.rotor(2).thrust();
     const double left_thrust = quad.rotor(3).thrust();
 
-    const double expected_pitch = arm * (-std::abs(front_thrust) + std::abs(back_thrust));
+    const double expected_pitch = arm * (std::abs(front_thrust) - std::abs(back_thrust));
     const double expected_roll = arm * (std::abs(right_thrust) - std::abs(left_thrust));
 
-    EXPECT_NEAR(quad.torque().x, expected_pitch, 1e-9);
-    EXPECT_NEAR(quad.torque().z, expected_roll, 1e-9);
-    EXPECT_LT(quad.torque().x, 0.0);
+    EXPECT_NEAR(quad.torque().x, expected_roll, 1e-9);
+    EXPECT_NEAR(quad.torque().z, expected_pitch, 1e-9);
+    EXPECT_GT(quad.torque().x, 0.0);
     EXPECT_GT(quad.torque().z, 0.0);
 }
 
@@ -101,10 +101,10 @@ TEST(BridgeQuadcopterModel, RotorPositionsFollowPlusLayout)
     srp::bridge::QuadcopterForceModel quad(testQuadcopterParameters());
     const double arm = testQuadcopterParameters().arm_length_m;
 
-    EXPECT_EQ(quad.rotorPosition(0), srp::math::Vec3(0.0, 0.0, arm));
-    EXPECT_EQ(quad.rotorPosition(1), srp::math::Vec3(arm, 0.0, 0.0));
-    EXPECT_EQ(quad.rotorPosition(2), srp::math::Vec3(0.0, 0.0, -arm));
-    EXPECT_EQ(quad.rotorPosition(3), srp::math::Vec3(-arm, 0.0, 0.0));
+    EXPECT_EQ(quad.rotorPosition(0), srp::math::Vec3(arm, 0.0, 0.0));
+    EXPECT_EQ(quad.rotorPosition(1), srp::math::Vec3(0.0, 0.0, -arm));
+    EXPECT_EQ(quad.rotorPosition(2), srp::math::Vec3(-arm, 0.0, 0.0));
+    EXPECT_EQ(quad.rotorPosition(3), srp::math::Vec3(0.0, 0.0, arm));
 }
 
 TEST(BridgeQuadcopterModel, RotorSpinDirectionsAlternate)

@@ -22,13 +22,14 @@ struct QuadcopterParameters
 // Assembles the net body-frame forces and torques produced by four rotors
 // mounted in a "+" configuration around the center of mass:
 //
-//     index 0: front  at ( 0, 0, +L), spins +Y
-//     index 1: right  at (+L, 0,  0), spins -Y
-//     index 2: back   at ( 0, 0, -L), spins +Y
-//     index 3: left   at (-L, 0,  0), spins -Y
+//     index 0: front  at (+L, 0,  0), spins +Y
+//     index 1: right  at ( 0, 0, -L), spins -Y
+//     index 2: back   at (-L, 0,  0), spins +Y
+//     index 3: left   at ( 0, 0, +L), spins -Y
 //
-// The body frame uses the project convention Y up, X forward, Z to the
-// right. Each rotor is mounted so its thrust points along +Y (up)
+// The body frame uses a right-handed convention: X forward, Y up, Z left
+// (so the right side is -Z). Each rotor is mounted so its thrust points
+// along +Y (up)
 // regardless of spin direction; only the magnitude matters for lift. The
 // torque about Y is yaw; aerodynamic drag opposes each rotor's spin, so
 // adjacent rotors must spin in opposite directions to cancel yaw at equal
@@ -49,8 +50,11 @@ public:
     // Net body-frame force: (0, lift, 0) in newtons.
     math::Vec3 force() const;
 
-    // Net body-frame torque in newton-meters. x is pitch, y is yaw, z is
-    // roll; a faster front rotor pitches nose-down (negative x).
+    // Net body-frame torque in newton-meters. x is the roll moment about
+    // the forward axis (a faster right rotor rolls the body right,
+    // positive x), y is the yaw torque about the vertical axis, and z is
+    // the pitch moment about the lateral axis (a faster front rotor pitches
+    // the nose up, positive z).
     math::Vec3 torque() const;
 
     double totalThrust() const;
