@@ -2,15 +2,17 @@
 #include "core/config/app_config.hpp"
 #include "core/loop/fixed_step_loop.hpp"
 #include "core/logging.hpp"
-#include "physics/physics_world.hpp"
+#include "editor/scene_editor.hpp"
 #include "rendering/debug_draw.hpp"
 #include "scripting/car_closed_loop_demo.hpp"
 
-#include <chrono>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <string>
+#include <utility>
 #include <vector>
 #include <windows.h>
 #include <windowsx.h>
@@ -42,9 +44,14 @@ std::uint64_t g_render_frames = 0;
 double g_camera_yaw = 0.0;
 double g_camera_pitch = 0.35;
 double g_camera_distance = 6.0;
-bool g_camera_dragging = false;
+bool g_camera_orbiting = false;
 int g_last_mouse_x = 0;
 int g_last_mouse_y = 0;
+
+bool g_move_mode = false;
+bool g_move_dragging = false;
+
+srp::editor::SceneEditor* g_scene_editor = nullptr;
 
 constexpr const char* kCarControllerScript =
     "elapsed = 0\n"
@@ -67,11 +74,128 @@ constexpr const char* kCarControllerScript =
     "    end\n"
     "end\n";
 
+constexpr double kCameraTargetY = 0.5;
+
+srp::math::Vec3 cameraEye()
+{
+    return srp::math::Vec3(
+        g_camera_distance * std::cos(g_camera_pitch) * std::sin(g_camera_yaw),
+        kCameraTargetY + g_camera_distance * std::sin(g_camera_pitch),
+        g_camera_distance * std::cos(g_camera_pitch) * std::cos(g_camera_yaw));
+}
+
+// Builds a world-space ray through a client-space pixel.
+std::pair<srp::math::Vec3, srp::math::Vec3> screenRay(
+    int x,
+    int y,
+    int width,
+    int height)
+{
+    constexpr srp::math::Vec3 kUp(0.0, 1.0, 0.0);
+    constexpr srp::math::Vec3 kTarget(0.0, kCameraTargetY, 0.0);
+
+    const srp::math::Vec3 eye = cameraEye();
+    const srp::math::Vec3 forward = glm::normalize(kTarget - eye);
+    const srp::math::Vec3 right = glm::normalize(glm::cross(forward, kUp));
+    const srp::math::Vec3 up = glm::cross(right, forward);
+
+    const double aspect = static_cast<double>(width) / static_cast<double>(height);
+    const double half_fov = srp::math::radians(45.0) * 0.5;
+    const double ndc_x =
+        (2.0 * static_cast<double>(x) / static_cast<double>(width) - 1.0) *
+        std::tan(half_fov) * aspect;
+    const double ndc_y =
+        (1.0 - 2.0 * static_cast<double>(y) / static_cast<double>(height)) *
+        std::tan(half_fov);
+
+    const srp::math::Vec3 point =
+        eye + forward + right * ndc_x + up * ndc_y;
+    return {eye, glm::normalize(point - eye)};
+}
+
+void handleViewportClick(HWND window, int x, int y)
+{
+    if (g_scene_editor == nullptr)
+    {
+        return;
+    }
+
+    RECT client_rect{};
+    GetClientRect(window, &client_rect);
+    const int width = client_rect.right - client_rect.left;
+    const int height = client_rect.bottom - client_rect.top;
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    const auto [origin, direction] = screenRay(x, y, width, height);
+    const std::optional<srp::physics::BodyId> selected = g_scene_editor->selected();
+
+    if (g_move_mode && selected.has_value())
+    {
+        const std::optional<srp::math::Vec3> target =
+            srp::editor::SceneEditor::pickGround(origin, direction);
+        if (target.has_value())
+        {
+            g_scene_editor->moveTo(*selected, *target);
+            g_move_dragging = true;
+            SetCapture(window);
+        }
+        return;
+    }
+
+    const std::optional<srp::physics::BodyId> hit =
+        srp::editor::SceneEditor::pick(
+            g_scene_editor->world(),
+            origin,
+            direction);
+    if (hit.has_value())
+    {
+        g_scene_editor->select(*hit);
+    }
+    else
+    {
+        g_scene_editor->deselect();
+    }
+}
+
+void handleViewportDrag(HWND window, int x, int y)
+{
+    if (g_scene_editor == nullptr || !g_move_dragging)
+    {
+        return;
+    }
+
+    const std::optional<srp::physics::BodyId> selected = g_scene_editor->selected();
+    if (!selected.has_value())
+    {
+        g_move_dragging = false;
+        return;
+    }
+
+    RECT client_rect{};
+    GetClientRect(window, &client_rect);
+    const int width = client_rect.right - client_rect.left;
+    const int height = client_rect.bottom - client_rect.top;
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    const auto [origin, direction] = screenRay(x, y, width, height);
+    const std::optional<srp::math::Vec3> target =
+        srp::editor::SceneEditor::pickGround(origin, direction);
+    if (target.has_value())
+    {
+        g_scene_editor->moveTo(*selected, *target);
+    }
+}
+
 void renderScene(
     int width,
     int height,
-    const srp::physics::PhysicsWorld& world,
-    const std::vector<srp::physics::BodyId>& body_ids,
+    const srp::editor::SceneEditor& scene_editor,
     const srp::scripting::CarClosedLoopDemo& car_demo)
 {
     if (width <= 0 || height <= 0)
@@ -95,22 +219,17 @@ void renderScene(
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    constexpr double kTargetX = 0.0;
-    constexpr double kTargetY = 0.5;
-    constexpr double kTargetZ = 0.0;
-    const double eye_x = kTargetX + g_camera_distance *
-        std::cos(g_camera_pitch) * std::sin(g_camera_yaw);
-    const double eye_y = kTargetY + g_camera_distance *
-        std::sin(g_camera_pitch);
-    const double eye_z = kTargetZ + g_camera_distance *
-        std::cos(g_camera_pitch) * std::cos(g_camera_yaw);
+    constexpr srp::math::Vec3 kTarget(0.0, kCameraTargetY, 0.0);
+    const srp::math::Vec3 eye = cameraEye();
     gluLookAt(
-        eye_x, eye_y, eye_z,
-        kTargetX, kTargetY, kTargetZ,
+        eye.x, eye.y, eye.z,
+        kTarget.x, kTarget.y, kTarget.z,
         0.0, 1.0, 0.0);
 
-    glColor3d(0.35, 0.75, 1.0);
-    for (const srp::physics::BodyId id : body_ids)
+    const srp::physics::PhysicsWorld& world = scene_editor.world();
+    const std::optional<srp::physics::BodyId> selected = scene_editor.selected();
+
+    for (const srp::physics::BodyId id : world.bodyIds())
     {
         const srp::physics::RigidBodyState* body = world.body(id);
         const srp::physics::CollisionShape* shape = world.shape(id);
@@ -119,6 +238,20 @@ void renderScene(
             continue;
         }
 
+        const bool is_ground = std::holds_alternative<srp::physics::PlaneShape>(*shape);
+        const bool is_selected = selected.has_value() && *selected == id;
+        if (is_selected)
+        {
+            glColor3d(1.0, 0.85, 0.1);
+        }
+        else if (is_ground)
+        {
+            glColor3d(0.45, 0.45, 0.5);
+        }
+        else
+        {
+            glColor3d(0.35, 0.75, 1.0);
+        }
         srp::rendering::drawCollisionShape(
             *shape,
             body->position,
@@ -150,7 +283,86 @@ void renderScene(
     {
         srp::rendering::drawContactPoint(contact.point);
     }
+}
 
+void drawScenePanel()
+{
+    if (g_scene_editor == nullptr)
+    {
+        return;
+    }
+
+    ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300.0f, 420.0f), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Scene");
+
+    ImGui::Text("Objects: %zu", g_scene_editor->entries().size());
+    if (ImGui::Button("Add Box"))
+    {
+        g_scene_editor->addBody(srp::editor::ShapeKind::kBox);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Add Sphere"))
+    {
+        g_scene_editor->addBody(srp::editor::ShapeKind::kSphere);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Add Cylinder"))
+    {
+        g_scene_editor->addBody(srp::editor::ShapeKind::kCylinder);
+    }
+
+    ImGui::Checkbox("Move mode (drag on ground)", &g_move_mode);
+    ImGui::Text("Left click: select  |  Right drag: orbit  |  Wheel: zoom");
+    ImGui::Text("Delete: remove  |  Esc: deselect");
+    ImGui::Separator();
+
+    for (const srp::editor::BodyEntry& entry : g_scene_editor->entries())
+    {
+        const bool is_selected = g_scene_editor->selected() == entry.id;
+        if (ImGui::Selectable(entry.name.c_str(), is_selected))
+        {
+            g_scene_editor->select(entry.id);
+        }
+    }
+
+    const std::optional<srp::physics::BodyId> selected = g_scene_editor->selected();
+    if (selected.has_value())
+    {
+        srp::editor::BodyEntry* entry = g_scene_editor->entry(*selected);
+        if (entry != nullptr)
+        {
+            ImGui::Separator();
+            char name_buffer[128]{};
+            std::snprintf(name_buffer, sizeof(name_buffer), "%s", entry->name.c_str());
+            if (ImGui::InputText("Name", name_buffer, sizeof(name_buffer)))
+            {
+                entry->name = name_buffer;
+            }
+
+            const srp::physics::RigidBodyState* body =
+                g_scene_editor->world().body(*selected);
+            if (body != nullptr)
+            {
+                ImGui::Text(
+                    "Position: (%.2f, %.2f, %.2f)",
+                    body->position.x,
+                    body->position.y,
+                    body->position.z);
+                ImGui::Text("Velocity: (%.2f, %.2f, %.2f)",
+                    body->linear_velocity.x,
+                    body->linear_velocity.y,
+                    body->linear_velocity.z);
+            }
+
+            if (ImGui::Button("Delete"))
+            {
+                g_scene_editor->removeBody(*selected);
+            }
+        }
+    }
+
+    ImGui::End();
 }
 
 LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_param)
@@ -170,22 +382,33 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_
         return 1;
 
     case WM_LBUTTONDOWN:
-        g_camera_dragging = true;
+        handleViewportClick(window, GET_X_LPARAM(l_param), GET_Y_LPARAM(l_param));
+        return 0;
+
+    case WM_LBUTTONUP:
+        g_move_dragging = false;
+        ReleaseCapture();
+        return 0;
+
+    case WM_RBUTTONDOWN:
+        g_camera_orbiting = true;
         g_last_mouse_x = GET_X_LPARAM(l_param);
         g_last_mouse_y = GET_Y_LPARAM(l_param);
         SetCapture(window);
         return 0;
 
-    case WM_LBUTTONUP:
-        g_camera_dragging = false;
+    case WM_RBUTTONUP:
+        g_camera_orbiting = false;
         ReleaseCapture();
         return 0;
 
     case WM_MOUSEMOVE:
-        if (g_camera_dragging)
+    {
+        const int x = GET_X_LPARAM(l_param);
+        const int y = GET_Y_LPARAM(l_param);
+
+        if (g_camera_orbiting)
         {
-            const int x = GET_X_LPARAM(l_param);
-            const int y = GET_Y_LPARAM(l_param);
             const double dx = static_cast<double>(x - g_last_mouse_x);
             const double dy = static_cast<double>(y - g_last_mouse_y);
             g_last_mouse_x = x;
@@ -194,7 +417,12 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_
             g_camera_pitch += dy * 0.01;
             g_camera_pitch = std::clamp(g_camera_pitch, -1.5, 1.5);
         }
+        else
+        {
+            handleViewportDrag(window, x, y);
+        }
         return 0;
+    }
 
     case WM_MOUSEWHEEL:
     {
@@ -203,6 +431,22 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_
         g_camera_distance = std::clamp(g_camera_distance, 1.5, 30.0);
         return 0;
     }
+
+    case WM_KEYDOWN:
+        if (g_scene_editor != nullptr && !ImGui::GetIO().WantCaptureKeyboard)
+        {
+            const std::optional<srp::physics::BodyId> selected =
+                g_scene_editor->selected();
+            if (w_param == VK_DELETE && selected.has_value())
+            {
+                g_scene_editor->removeBody(*selected);
+            }
+            else if (w_param == VK_ESCAPE)
+            {
+                g_scene_editor->deselect();
+            }
+        }
+        return 0;
 
     case WM_DESTROY:
         PostQuitMessage(0);
@@ -301,39 +545,15 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImGui::GetIO().IniFilename = nullptr;
     ImGui::StyleColorsDark();
     ImGui_ImplWin32_Init(window);
     ImGui_ImplOpenGL2_Init();
 
-    srp::physics::PhysicsWorld world;
-    std::vector<srp::physics::BodyId> body_ids;
-
-    srp::physics::RigidBodyState ground_state;
-    ground_state.type = srp::physics::RigidBodyType::kStatic;
-
-    srp::physics::PlaneShape ground_plane;
-    ground_plane.normal = srp::math::Vec3(0.0, 1.0, 0.0);
-    body_ids.push_back(world.createBody(ground_state, ground_plane));
-
-    srp::physics::RigidBodyState sphere_state;
-    sphere_state.type = srp::physics::RigidBodyType::kDynamic;
-    sphere_state.mass = 1.0;
-    sphere_state.position = srp::math::Vec3(0.0, 2.5, 1.5);
-    sphere_state.restitution = 0.3;
-
-    srp::physics::SphereShape sphere_shape;
-    sphere_shape.radius = 0.5;
-    body_ids.push_back(world.createBody(sphere_state, sphere_shape));
-
-    srp::physics::RigidBodyState box_state;
-    box_state.type = srp::physics::RigidBodyType::kDynamic;
-    box_state.mass = 1.0;
-    box_state.position = srp::math::Vec3(0.0, 4.0, -1.5);
-    box_state.friction = 0.6;
-
-    srp::physics::BoxShape box_shape;
-    box_shape.half_extents = srp::math::Vec3(0.5);
-    body_ids.push_back(world.createBody(box_state, box_shape));
+    srp::editor::SceneEditor scene_editor;
+    g_scene_editor = &scene_editor;
+    scene_editor.addBody(srp::editor::ShapeKind::kBox);
+    scene_editor.addBody(srp::editor::ShapeKind::kSphere);
 
     srp::scripting::CarClosedLoopDemo car_demo;
     if (!car_demo.loadScript("controller", kCarControllerScript))
@@ -341,7 +561,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         srp::core::logError("failed to load car controller script");
     }
 
-    srp::core::logInfo("SRPlatform window created (drag to orbit, wheel to zoom)");
+    srp::core::logInfo(
+        "SRPlatform editor ready (left click select, right drag orbit, wheel zoom)");
 
     ShowWindow(window, show_command);
     UpdateWindow(window);
@@ -377,7 +598,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 
         for (std::size_t i = 0; i < update.steps; ++i)
         {
-            world.step(config.simulation.fixed_dt);
+            scene_editor.world().step(config.simulation.fixed_dt);
             car_demo.step(config.simulation.fixed_dt);
             ++g_simulation_ticks;
         }
@@ -390,25 +611,22 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         renderScene(
             client_rect.right - client_rect.left,
             client_rect.bottom - client_rect.top,
-            world,
-            body_ids,
+            scene_editor,
             car_demo);
 
         ImGui_ImplOpenGL2_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(300.0f, 180.0f), ImGuiCond_FirstUseEver);
+        drawScenePanel();
+
         ImGui::Begin("Tool UI");
         ImGui::Text("Simulation ticks: %llu", g_simulation_ticks);
         ImGui::Text("Render frames: %llu", g_render_frames);
         ImGui::Text("Fixed steps this frame: %zu", update.steps);
-        ImGui::Text("Bodies: %zu", world.bodyIds().size());
         ImGui::End();
 
         ImGui::Render();
-
         ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
         SwapBuffers(device_context);
 
@@ -426,6 +644,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         Sleep(1);
     }
 
+    g_scene_editor = nullptr;
     ImGui_ImplOpenGL2_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();

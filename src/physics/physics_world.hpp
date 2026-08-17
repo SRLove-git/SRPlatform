@@ -23,6 +23,13 @@ public:
 
     JointId createJoint(const JointDefinition& definition);
 
+    // Removes a body and any joints that reference it. Returns false when the
+    // id does not exist. Remaining ids stay stable; bodyIds() order may change.
+    bool removeBody(BodyId id);
+
+    // Removes a joint. Returns false when the id does not exist.
+    bool removeJoint(JointId id);
+
     RigidBodyState* body(BodyId id);
     const RigidBodyState* body(BodyId id) const;
 

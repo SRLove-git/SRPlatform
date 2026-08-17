@@ -283,6 +283,23 @@ target_link_libraries(srp_rendering
 
 srp_enable_warnings(srp_rendering)
 
+add_library(srp_editor
+    src/editor/scene_editor.cpp
+)
+
+target_include_directories(srp_editor
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(srp_editor
+    PUBLIC
+        srp_core
+        srp_physics
+)
+
+srp_enable_warnings(srp_editor)
+
 add_executable(srp_cli
     src/app/main.cpp
 )
@@ -302,6 +319,7 @@ target_link_libraries(srp_window
     PRIVATE
         srp_rendering
         srp_scripting
+        srp_editor
         imgui
         user32
         gdi32
@@ -327,6 +345,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/physics/restitution_friction_test.cpp
         tests/unit/physics/joint_test.cpp
         tests/unit/physics/wheel_constraint_test.cpp
+        tests/unit/physics/body_removal_test.cpp
         tests/unit/physics/regression_test.cpp
         tests/unit/circuit/circuit_model_test.cpp
         tests/unit/circuit/dc_solver_test.cpp
@@ -362,6 +381,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/scripting/drone_closed_loop_demo_test.cpp
         tests/unit/scripting/mod_entity_demo_test.cpp
         tests/unit/scripting/script_control_test.cpp
+        tests/unit/editor/scene_editor_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
@@ -373,6 +393,7 @@ if(SRP_BUILD_TESTS)
             srp_mod
             srp_bridge
             srp_scripting
+            srp_editor
             GTest::gtest_main
     )
 

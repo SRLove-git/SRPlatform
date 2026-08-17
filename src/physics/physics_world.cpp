@@ -121,6 +121,83 @@ JointId PhysicsWorld::createJoint(const JointDefinition& definition)
     return id;
 }
 
+bool PhysicsWorld::removeJoint(JointId id)
+{
+    const auto it = joint_indices_.find(id);
+    if (it == joint_indices_.end())
+    {
+        return false;
+    }
+
+    const std::size_t index = it->second;
+    const std::size_t last = joints_.size() - 1;
+
+    if (index != last)
+    {
+        JointId moved_id = id;
+        for (const auto& [joint_id, joint_index] : joint_indices_)
+        {
+            if (joint_index == last)
+            {
+                moved_id = joint_id;
+                break;
+            }
+        }
+        joints_[index] = std::move(joints_[last]);
+        joint_indices_[moved_id] = index;
+    }
+
+    joints_.pop_back();
+    joint_indices_.erase(id);
+    return true;
+}
+
+bool PhysicsWorld::removeBody(BodyId id)
+{
+    const auto it = body_indices_.find(id);
+    if (it == body_indices_.end())
+    {
+        return false;
+    }
+
+    // Drop every joint that references the removed body first so the world
+    // never keeps dangling joint definitions.
+    std::vector<JointId> joints_to_remove;
+    for (const auto& [joint_id, index] : joint_indices_)
+    {
+        if (joints_[index].body_a == id || joints_[index].body_b == id)
+        {
+            joints_to_remove.push_back(joint_id);
+        }
+    }
+    for (const JointId joint_id : joints_to_remove)
+    {
+        removeJoint(joint_id);
+    }
+
+    const std::size_t index = it->second;
+    const std::size_t last = bodies_.size() - 1;
+
+    const BodyId moved_id = body_ids_[last];
+    if (index != last)
+    {
+        body_ids_[index] = body_ids_[last];
+        bodies_[index] = std::move(bodies_[last]);
+        shapes_[index] = std::move(shapes_[last]);
+        force_accumulators_[index] = std::move(force_accumulators_[last]);
+        torque_accumulators_[index] = std::move(torque_accumulators_[last]);
+        body_indices_[moved_id] = index;
+    }
+
+    body_ids_.pop_back();
+    bodies_.pop_back();
+    shapes_.pop_back();
+    force_accumulators_.pop_back();
+    torque_accumulators_.pop_back();
+    body_indices_.erase(id);
+    return true;
+}
+
 RigidBodyState* PhysicsWorld::body(BodyId id)
 {
     const auto it = body_indices_.find(id);
