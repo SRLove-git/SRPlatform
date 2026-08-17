@@ -77,6 +77,7 @@ srp_enable_warnings(srp_core)
 
 add_library(srp_physics
     src/physics/rigid_body.cpp
+    src/physics/physics_world.cpp
 )
 
 target_include_directories(srp_physics
@@ -126,6 +127,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/core/app_config_test.cpp
         tests/unit/core/math_types_test.cpp
         tests/unit/physics/rigid_body_test.cpp
+        tests/unit/physics/physics_world_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
