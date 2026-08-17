@@ -33,6 +33,17 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(json)
 
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.15.2
+)
+
+FetchContent_MakeAvailable(googletest)
+
 option(SRP_BUILD_TESTS "Build SRPlatform unit tests" ON)
 
 add_library(srp_core
@@ -82,51 +93,22 @@ srp_enable_warnings(srp_window)
 if(SRP_BUILD_TESTS)
     enable_testing()
 
-    add_executable(srp_core_tests
+    add_executable(srp_unit_tests
         tests/unit/core/version_test.cpp
-    )
-
-    target_link_libraries(srp_core_tests
-        PRIVATE
-            srp_core
-    )
-
-    srp_enable_warnings(srp_core_tests)
-
-    add_test(
-        NAME core.version
-        COMMAND srp_core_tests
-    )
-
-    add_executable(srp_core_loop_tests
         tests/unit/core/fixed_step_loop_test.cpp
-    )
-
-    target_link_libraries(srp_core_loop_tests
-        PRIVATE
-            srp_core
-    )
-
-    srp_enable_warnings(srp_core_loop_tests)
-
-    add_test(
-        NAME core.fixed_step_loop
-        COMMAND srp_core_loop_tests
-    )
-
-    add_executable(srp_core_config_tests
         tests/unit/core/app_config_test.cpp
     )
 
-    target_link_libraries(srp_core_config_tests
+    target_link_libraries(srp_unit_tests
         PRIVATE
             srp_core
+            GTest::gtest_main
     )
 
-    srp_enable_warnings(srp_core_config_tests)
+    srp_enable_warnings(srp_unit_tests)
 
     add_test(
-        NAME core.app_config
-        COMMAND srp_core_config_tests
+        NAME core.unit
+        COMMAND srp_unit_tests
     )
 endif()

@@ -1,22 +1,15 @@
 #include "core/version.hpp"
 
-#include <iostream>
+#include <gtest/gtest.h>
 
-int main()
+TEST(CoreVersion, ConstantsMatchExpectedValues)
 {
-    if (srp::core::kVersion.major != 0 ||
-        srp::core::kVersion.minor != 1 ||
-        srp::core::kVersion.patch != 0)
-    {
-        std::cerr << "version constants do not match expected values\n";
-        return 1;
-    }
+    EXPECT_EQ(srp::core::kVersion.major, 0);
+    EXPECT_EQ(srp::core::kVersion.minor, 1);
+    EXPECT_EQ(srp::core::kVersion.patch, 0);
+}
 
-    if (srp::core::versionString() != "0.1.0")
-    {
-        std::cerr << "version string does not match expected value\n";
-        return 1;
-    }
-
-    return 0;
+TEST(CoreVersion, StringMatchesExpectedValue)
+{
+    EXPECT_EQ(srp::core::versionString(), "0.1.0");
 }

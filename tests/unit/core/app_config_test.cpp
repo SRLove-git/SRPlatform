@@ -2,19 +2,20 @@
 
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 
-int main()
+#include <gtest/gtest.h>
+
+TEST(CoreAppConfig, DefaultsAreCorrect)
 {
     const auto defaults = srp::core::defaultAppConfig();
-    if (defaults.window.width != 800 ||
-        defaults.window.height != 600 ||
-        defaults.simulation.max_steps_per_frame != 8)
-    {
-        std::cerr << "default config values are incorrect\n";
-        return 1;
-    }
+    EXPECT_EQ(defaults.window.width, 800);
+    EXPECT_EQ(defaults.window.height, 600);
+    EXPECT_EQ(defaults.window.title, "SRPlatform");
+    EXPECT_EQ(defaults.simulation.max_steps_per_frame, 8);
+}
 
+TEST(CoreAppConfig, ParsesJsonFile)
+{
     const auto temp_path =
         std::filesystem::temp_directory_path() / "srplatform_config_test.json";
 
@@ -28,18 +29,12 @@ int main()
     }
 
     const auto config = srp::core::loadAppConfig(temp_path.string());
-    if (config.window.width != 1280 ||
-        config.window.height != 720 ||
-        config.window.title != "Test Platform" ||
-        config.simulation.fixed_dt != 0.01 ||
-        config.simulation.max_steps_per_frame != 12 ||
-        config.logging.level != "debug")
-    {
-        std::cerr << "parsed config values are incorrect\n";
-        std::filesystem::remove(temp_path);
-        return 1;
-    }
+    EXPECT_EQ(config.window.width, 1280);
+    EXPECT_EQ(config.window.height, 720);
+    EXPECT_EQ(config.window.title, "Test Platform");
+    EXPECT_DOUBLE_EQ(config.simulation.fixed_dt, 0.01);
+    EXPECT_EQ(config.simulation.max_steps_per_frame, 12);
+    EXPECT_EQ(config.logging.level, "debug");
 
     std::filesystem::remove(temp_path);
-    return 0;
 }
