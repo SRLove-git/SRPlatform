@@ -20,6 +20,8 @@ struct CarEntity::Impl
     physics::BodyId chassis_id{physics::kInvalidBodyId};
     physics::BodyId wheel_id{physics::kInvalidBodyId};
     physics::JointId wheel_joint_id{physics::kInvalidJointId};
+    StateRecorder recorder;
+    double elapsed_time{0.0};
     double throttle{0.0};
 
     explicit Impl(const CarParameters& values)
@@ -139,6 +141,17 @@ void CarEntity::step(double dt)
     }
 
     impl_->world.step(dt);
+    impl_->elapsed_time += dt;
+
+    const physics::RigidBodyState* chassis_state = chassisBody();
+    CarStateSample sample;
+    sample.time_s = impl_->elapsed_time;
+    sample.battery_voltage_v = batteryVoltage();
+    sample.motor_current_a = motorCurrent();
+    sample.motor_angular_velocity_rad_s = motorAngularVelocity();
+    sample.chassis_position_x_m =
+        chassis_state != nullptr ? chassis_state->position.x : 0.0;
+    impl_->recorder.record(sample);
 }
 
 double CarEntity::batteryStateOfCharge() const
@@ -161,6 +174,11 @@ double CarEntity::motorAngularVelocity() const
     return impl_->motor.angularVelocity();
 }
 
+double CarEntity::elapsedTime() const
+{
+    return impl_->elapsed_time;
+}
+
 const physics::RigidBodyState* CarEntity::chassisBody() const
 {
     return impl_->world.body(impl_->chassis_id);
@@ -169,6 +187,11 @@ const physics::RigidBodyState* CarEntity::chassisBody() const
 const physics::RigidBodyState* CarEntity::wheelBody() const
 {
     return impl_->world.body(impl_->wheel_id);
+}
+
+const StateRecorder& CarEntity::recorder() const
+{
+    return impl_->recorder;
 }
 
 }  // namespace srp::bridge

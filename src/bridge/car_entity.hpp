@@ -2,6 +2,7 @@
 
 #include "bridge/battery_model.hpp"
 #include "bridge/dc_motor_model.hpp"
+#include "bridge/state_recorder.hpp"
 
 #include <memory>
 
@@ -47,9 +48,11 @@ public:
     double batteryVoltage() const;
     double motorCurrent() const;
     double motorAngularVelocity() const;
+    double elapsedTime() const;
 
     const physics::RigidBodyState* chassisBody() const;
     const physics::RigidBodyState* wheelBody() const;
+    const StateRecorder& recorder() const;
 
 private:
     struct Impl;
