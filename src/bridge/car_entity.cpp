@@ -179,6 +179,11 @@ void CarEntity::step(double dt)
     impl_->recorder.record(sample);
 }
 
+const char* CarEntity::kind() const
+{
+    return "car";
+}
+
 double CarEntity::batteryStateOfCharge() const
 {
     return impl_->battery.stateOfCharge();

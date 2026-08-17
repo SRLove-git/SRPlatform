@@ -138,6 +138,11 @@ void DroneEntity::step(double dt)
     impl_->distance_sensor.update(impl_->world);
 }
 
+const char* DroneEntity::kind() const
+{
+    return "drone";
+}
+
 double DroneEntity::altitude() const
 {
     return impl_->distance_sensor.distance();

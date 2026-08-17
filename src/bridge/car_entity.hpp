@@ -2,6 +2,7 @@
 
 #include "bridge/battery_model.hpp"
 #include "bridge/dc_motor_model.hpp"
+#include "bridge/entity.hpp"
 #include "bridge/state_recorder.hpp"
 #include "physics/collision_shape.hpp"
 
@@ -29,7 +30,7 @@ struct CarParameters
 
 // A small example vehicle that composes a battery, a DC motor, a chassis, a
 // wheel, and the wheel-ground constraint into one stepping unit.
-class CarEntity
+class CarEntity : public IEntity
 {
 public:
     explicit CarEntity(const CarParameters& parameters = {});
@@ -46,7 +47,8 @@ public:
     double steering() const;
     double heading() const;
 
-    void step(double dt);
+    void step(double dt) override;
+    const char* kind() const override;
 
     double batteryStateOfCharge() const;
     double batteryVoltage() const;

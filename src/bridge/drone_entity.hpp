@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bridge/distance_sensor_model.hpp"
+#include "bridge/entity.hpp"
 #include "bridge/imu_model.hpp"
 #include "bridge/quadcopter_model.hpp"
 #include "physics/collision_shape.hpp"
@@ -36,7 +37,7 @@ struct DroneParameters
 // the lift points straight up, which makes the altitude-hold demo focus on
 // the vertical loop. Attitude stabilization is intentionally left to later
 // phases.
-class DroneEntity
+class DroneEntity : public IEntity
 {
 public:
     explicit DroneEntity(const DroneParameters& parameters = {});
@@ -50,7 +51,8 @@ public:
     void setThrottle(double value);
     double throttle() const;
 
-    void step(double dt);
+    void step(double dt) override;
+    const char* kind() const override;
 
     // Downward distance sensor reading in meters (ground clearance).
     double altitude() const;

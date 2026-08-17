@@ -145,6 +145,7 @@ add_library(srp_mod
     src/mod/mod_manifest.cpp
     src/mod/gltf_model.cpp
     src/mod/mod_package.cpp
+    src/mod/entity_blueprint.cpp
 )
 
 target_include_directories(srp_mod
@@ -182,6 +183,7 @@ add_library(srp_bridge
     src/bridge/drone_control_bus.cpp
     src/bridge/drone_entity.cpp
     src/bridge/encoder_model.cpp
+    src/bridge/entity_factory.cpp
     src/bridge/imu_model.cpp
     src/bridge/propeller_model.cpp
     src/bridge/quadcopter_model.cpp
@@ -197,6 +199,7 @@ target_link_libraries(srp_bridge
     PUBLIC
         srp_core
         srp_physics
+        srp_mod
 )
 
 srp_enable_warnings(srp_bridge)
@@ -302,6 +305,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/mod/mod_manifest_test.cpp
         tests/unit/mod/gltf_model_test.cpp
         tests/unit/mod/mod_package_test.cpp
+        tests/unit/mod/entity_blueprint_test.cpp
         tests/unit/bridge/battery_model_test.cpp
         tests/unit/bridge/bridge_test.cpp
         tests/unit/bridge/car_entity_test.cpp
@@ -309,6 +313,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/bridge/distance_sensor_model_test.cpp
         tests/unit/bridge/drone_entity_test.cpp
         tests/unit/bridge/encoder_model_test.cpp
+        tests/unit/bridge/entity_factory_test.cpp
         tests/unit/bridge/imu_model_test.cpp
         tests/unit/bridge/propeller_model_test.cpp
         tests/unit/bridge/quadcopter_model_test.cpp
