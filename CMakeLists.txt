@@ -98,7 +98,9 @@ srp_enable_warnings(srp_physics)
 
 add_library(srp_circuit
     src/circuit/circuit_model.cpp
+    src/circuit/linear_solver.cpp
     src/circuit/dc_solver.cpp
+    src/circuit/transient_solver.cpp
 )
 
 target_include_directories(srp_circuit
@@ -171,6 +173,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/physics/regression_test.cpp
         tests/unit/circuit/circuit_model_test.cpp
         tests/unit/circuit/dc_solver_test.cpp
+        tests/unit/circuit/transient_solver_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
