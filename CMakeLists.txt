@@ -81,6 +81,7 @@ add_library(srp_physics
     src/physics/collision_shape.cpp
     src/physics/aabb.cpp
     src/physics/broadphase.cpp
+    src/physics/narrowphase.cpp
 )
 
 target_include_directories(srp_physics
@@ -133,6 +134,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/physics/physics_world_test.cpp
         tests/unit/physics/collision_shape_test.cpp
         tests/unit/physics/broadphase_test.cpp
+        tests/unit/physics/narrowphase_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
