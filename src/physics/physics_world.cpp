@@ -61,6 +61,19 @@ BodyId PhysicsWorld::createBody(const RigidBodyState& state, CollisionShape shap
     return id;
 }
 
+JointId PhysicsWorld::createJoint(const JointDefinition& definition)
+{
+    if (body_indices_.find(definition.body_a) == body_indices_.end() ||
+        body_indices_.find(definition.body_b) == body_indices_.end())
+    {
+        return kInvalidJointId;
+    }
+
+    const JointId id = next_joint_id_++;
+    joints_.push_back(definition);
+    return id;
+}
+
 RigidBodyState* PhysicsWorld::body(BodyId id)
 {
     const auto it = body_indices_.find(id);
@@ -277,6 +290,53 @@ void PhysicsWorld::solveContacts(const std::vector<Contact>& contacts)
     }
 }
 
+void PhysicsWorld::solveJoints()
+{
+    constexpr double kPositionCorrection = 1.0;
+    constexpr double kVelocityCorrection = 1.0;
+
+    for (const Joint& joint : joints_)
+    {
+        RigidBodyState* body_a = body(joint.body_a);
+        RigidBodyState* body_b = body(joint.body_b);
+
+        if (body_a == nullptr || body_b == nullptr)
+        {
+            continue;
+        }
+
+        const math::Vec3 anchor_a =
+            body_a->position + body_a->orientation * joint.anchor_local_a;
+        const math::Vec3 anchor_b =
+            body_b->position + body_b->orientation * joint.anchor_local_b;
+
+        const double inverse_mass_a = inverseMass(*body_a);
+        const double inverse_mass_b = inverseMass(*body_b);
+        const double total_inverse_mass = inverse_mass_a + inverse_mass_b;
+
+        if (total_inverse_mass <= 0.0)
+        {
+            continue;
+        }
+
+        const math::Vec3 position_error = anchor_b - anchor_a;
+        const math::Vec3 position_correction =
+            position_error * (kPositionCorrection / total_inverse_mass);
+
+        body_a->position += inverse_mass_a * position_correction;
+        body_b->position -= inverse_mass_b * position_correction;
+
+        const math::Vec3 relative_velocity =
+            velocityAtPoint(*body_b, anchor_b) -
+            velocityAtPoint(*body_a, anchor_a);
+        const math::Vec3 velocity_correction =
+            relative_velocity * (kVelocityCorrection / total_inverse_mass);
+
+        body_a->linear_velocity += inverse_mass_a * velocity_correction;
+        body_b->linear_velocity -= inverse_mass_b * velocity_correction;
+    }
+}
+
 void PhysicsWorld::step(double dt)
 {
     for (RigidBodyState& state : bodies_)
@@ -301,6 +361,7 @@ void PhysicsWorld::step(double dt)
 
     const std::vector<Contact> contacts = generateContacts();
     solveContacts(contacts);
+    solveJoints();
 }
 
 }  // namespace srp::physics
