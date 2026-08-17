@@ -86,14 +86,9 @@ std::optional<DcAnalysisResult> solveDc(const CircuitModel& circuit)
     }
 
     std::size_t voltage_source_count = 0;
+    std::size_t inductor_count = 0;
     for (const Component& component : circuit.components())
     {
-        if (component.definition.type == ComponentType::kCapacitor ||
-            component.definition.type == ComponentType::kInductor)
-        {
-            return std::nullopt;
-        }
-
         if (component.ports.size() != 2)
         {
             return std::nullopt;
@@ -112,15 +107,22 @@ std::optional<DcAnalysisResult> solveDc(const CircuitModel& circuit)
         {
             ++voltage_source_count;
         }
+        else if (component.definition.type == ComponentType::kInductor)
+        {
+            ++inductor_count;
+        }
     }
 
-    const std::size_t unknown_count = non_ground_node_count + voltage_source_count;
+    const std::size_t unknown_count =
+        non_ground_node_count + voltage_source_count + inductor_count;
     std::vector<std::vector<double>> matrix(
         unknown_count,
         std::vector<double>(unknown_count, 0.0));
     std::vector<double> right_hand_side(unknown_count, 0.0);
     std::unordered_map<ComponentId, std::size_t> voltage_source_rows;
+    std::unordered_map<ComponentId, std::size_t> inductor_rows;
     std::size_t voltage_source_index = 0;
+    std::size_t inductor_index = 0;
 
     for (const Component& component : circuit.components())
     {
@@ -207,6 +209,44 @@ std::optional<DcAnalysisResult> solveDc(const CircuitModel& circuit)
 
             right_hand_side[source_row] = parameters->voltage;
         }
+        else if (component.definition.type == ComponentType::kCapacitor)
+        {
+            const auto* parameters =
+                std::get_if<CapacitorParameters>(&component.definition.parameters);
+            if (parameters == nullptr || !finite(parameters->capacitance) ||
+                parameters->capacitance <= 0.0)
+            {
+                return std::nullopt;
+            }
+        }
+        else if (component.definition.type == ComponentType::kInductor)
+        {
+            const auto* parameters =
+                std::get_if<InductorParameters>(&component.definition.parameters);
+            if (parameters == nullptr || !finite(parameters->inductance) ||
+                parameters->inductance <= 0.0)
+            {
+                return std::nullopt;
+            }
+
+            const std::size_t source_row =
+                non_ground_node_count + voltage_source_count + inductor_index++;
+            inductor_rows[component.id] = source_row;
+
+            if (first_node != kGroundNodeId)
+            {
+                matrix[node_indices[first_node]][source_row] += 1.0;
+                matrix[source_row][node_indices[first_node]] += 1.0;
+            }
+
+            if (second_node != kGroundNodeId)
+            {
+                matrix[node_indices[second_node]][source_row] -= 1.0;
+                matrix[source_row][node_indices[second_node]] -= 1.0;
+            }
+
+            right_hand_side[source_row] = 0.0;
+        }
     }
 
     const auto solution = detail::solveLinearSystem(std::move(matrix), std::move(right_hand_side));
@@ -260,6 +300,14 @@ std::optional<DcAnalysisResult> solveDc(const CircuitModel& circuit)
         else if (component.definition.type == ComponentType::kCurrentSource)
         {
             current = std::get<CurrentSourceParameters>(component.definition.parameters).current;
+        }
+        else if (component.definition.type == ComponentType::kCapacitor)
+        {
+            current = 0.0;
+        }
+        else if (component.definition.type == ComponentType::kInductor)
+        {
+            current = solution->at(inductor_rows.at(component.id));
         }
 
         result.component_currents.push_back(DcComponentCurrent{component.id, current});

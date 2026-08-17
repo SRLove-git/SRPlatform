@@ -57,6 +57,40 @@ srp::circuit::ComponentId addCurrentSource(
     return id;
 }
 
+srp::circuit::ComponentId addCapacitor(
+    srp::circuit::CircuitModel& circuit,
+    srp::circuit::NodeId first,
+    srp::circuit::NodeId second,
+    double capacitance)
+{
+    srp::circuit::ComponentDefinition definition;
+    definition.type = srp::circuit::ComponentType::kCapacitor;
+    definition.parameters = srp::circuit::CapacitorParameters{capacitance};
+
+    const srp::circuit::ComponentId id = circuit.addComponent(definition);
+    const srp::circuit::Component* component = circuit.component(id);
+    circuit.connectPort(component->ports[0], first);
+    circuit.connectPort(component->ports[1], second);
+    return id;
+}
+
+srp::circuit::ComponentId addInductor(
+    srp::circuit::CircuitModel& circuit,
+    srp::circuit::NodeId first,
+    srp::circuit::NodeId second,
+    double inductance)
+{
+    srp::circuit::ComponentDefinition definition;
+    definition.type = srp::circuit::ComponentType::kInductor;
+    definition.parameters = srp::circuit::InductorParameters{inductance};
+
+    const srp::circuit::ComponentId id = circuit.addComponent(definition);
+    const srp::circuit::Component* component = circuit.component(id);
+    circuit.connectPort(component->ports[0], first);
+    circuit.connectPort(component->ports[1], second);
+    return id;
+}
+
 }  // namespace
 
 TEST(DcSolver, SolvesVoltageDivider)
@@ -134,19 +168,58 @@ TEST(DcSolver, RejectsFloatingNode)
     EXPECT_FALSE(srp::circuit::solveDc(circuit).has_value());
 }
 
-TEST(DcSolver, RejectsDynamicComponent)
+TEST(DcSolver, TreatsCapacitorAsOpenCircuitAtDc)
+{
+    srp::circuit::CircuitModel circuit;
+    const srp::circuit::NodeId source_node = circuit.addNode("source");
+    const srp::circuit::NodeId capacitor_node = circuit.addNode("capacitor");
+
+    const srp::circuit::ComponentId source =
+        addVoltageSource(circuit, source_node, srp::circuit::kGroundNodeId, 10.0);
+    const srp::circuit::ComponentId resistor =
+        addResistor(circuit, source_node, capacitor_node, 1000.0);
+    const srp::circuit::ComponentId capacitor =
+        addCapacitor(circuit, capacitor_node, srp::circuit::kGroundNodeId, 1e-6);
+
+    const auto result = srp::circuit::solveDc(circuit);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_NEAR(*srp::circuit::nodeVoltage(*result, source_node), 10.0, 1e-12);
+    EXPECT_NEAR(*srp::circuit::nodeVoltage(*result, capacitor_node), 10.0, 1e-12);
+    EXPECT_NEAR(*srp::circuit::componentCurrent(*result, resistor), 0.0, 1e-15);
+    EXPECT_NEAR(*srp::circuit::componentCurrent(*result, capacitor), 0.0, 1e-15);
+    EXPECT_NEAR(*srp::circuit::componentCurrent(*result, source), 0.0, 1e-15);
+}
+
+TEST(DcSolver, TreatsInductorAsShortCircuitAtDc)
+{
+    srp::circuit::CircuitModel circuit;
+    const srp::circuit::NodeId source_node = circuit.addNode("source");
+    const srp::circuit::NodeId inductor_node = circuit.addNode("inductor");
+
+    const srp::circuit::ComponentId source =
+        addVoltageSource(circuit, source_node, srp::circuit::kGroundNodeId, 10.0);
+    const srp::circuit::ComponentId resistor =
+        addResistor(circuit, source_node, inductor_node, 1000.0);
+    const srp::circuit::ComponentId inductor =
+        addInductor(circuit, inductor_node, srp::circuit::kGroundNodeId, 1.0);
+
+    const auto result = srp::circuit::solveDc(circuit);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_NEAR(*srp::circuit::nodeVoltage(*result, source_node), 10.0, 1e-12);
+    EXPECT_NEAR(*srp::circuit::nodeVoltage(*result, inductor_node), 0.0, 1e-12);
+    EXPECT_NEAR(*srp::circuit::componentCurrent(*result, resistor), 0.01, 1e-15);
+    EXPECT_NEAR(*srp::circuit::componentCurrent(*result, inductor), 0.01, 1e-15);
+    EXPECT_NEAR(*srp::circuit::componentCurrent(*result, source), -0.01, 1e-15);
+}
+
+TEST(DcSolver, RejectsNonPositiveCapacitance)
 {
     srp::circuit::CircuitModel circuit;
     const srp::circuit::NodeId node_a = circuit.addNode("a");
 
-    srp::circuit::ComponentDefinition definition;
-    definition.type = srp::circuit::ComponentType::kCapacitor;
-    definition.parameters = srp::circuit::CapacitorParameters{1e-6};
-
-    const srp::circuit::ComponentId capacitor = circuit.addComponent(definition);
-    const srp::circuit::Component* component = circuit.component(capacitor);
-    circuit.connectPort(component->ports[0], node_a);
-    circuit.connectPort(component->ports[1], srp::circuit::kGroundNodeId);
+    addCapacitor(circuit, node_a, srp::circuit::kGroundNodeId, 0.0);
 
     EXPECT_FALSE(srp::circuit::solveDc(circuit).has_value());
 }
