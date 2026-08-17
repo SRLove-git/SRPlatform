@@ -144,6 +144,7 @@ srp_enable_warnings(srp_circuit)
 add_library(srp_mod
     src/mod/mod_manifest.cpp
     src/mod/gltf_model.cpp
+    src/mod/mod_package.cpp
 )
 
 target_include_directories(srp_mod
@@ -203,6 +204,7 @@ srp_enable_warnings(srp_bridge)
 add_library(srp_scripting
     src/scripting/car_closed_loop_demo.cpp
     src/scripting/drone_closed_loop_demo.cpp
+    src/scripting/hot_reload_script_host.cpp
     src/scripting/lua_script_host.cpp
 )
 
@@ -299,6 +301,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/control/hover_controller_test.cpp
         tests/unit/mod/mod_manifest_test.cpp
         tests/unit/mod/gltf_model_test.cpp
+        tests/unit/mod/mod_package_test.cpp
         tests/unit/bridge/battery_model_test.cpp
         tests/unit/bridge/bridge_test.cpp
         tests/unit/bridge/car_entity_test.cpp
@@ -311,6 +314,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/bridge/quadcopter_model_test.cpp
         tests/unit/bridge/state_recorder_test.cpp
         tests/unit/scripting/lua_script_host_test.cpp
+        tests/unit/scripting/hot_reload_script_host_test.cpp
         tests/unit/scripting/car_closed_loop_demo_test.cpp
         tests/unit/scripting/drone_closed_loop_demo_test.cpp
         tests/unit/scripting/script_control_test.cpp

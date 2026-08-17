@@ -33,3 +33,18 @@
 - 所有必填字段缺失、为空或类型错误时，清单解析失败。
 - `requires` 中每一项都必须是合法的 Mod ID。
 - 其他字段目前被忽略，后续阶段会扩展模型、电路、蓝图等资源字段。
+
+## 打包与热加载
+
+Mod 目录结构：
+
+```text
+my_mod/
+  mod.json
+  scripts/
+    main.lua
+```
+
+- `loadModPackage()` 加载目录中的 `mod.json` 并校验入口脚本存在。
+- 入口脚本可以通过 `HotReloadScriptHost` 按文件加载；脚本文件被修改后，
+  `pollReloads()` 会检测到变化并自动重新编译，无需重启仿真。
