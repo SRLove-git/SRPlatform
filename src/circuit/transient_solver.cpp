@@ -1,6 +1,7 @@
 #include "circuit/transient_solver.hpp"
 
 #include "circuit/circuit_model.hpp"
+#include "circuit/component_models.hpp"
 #include "circuit/linear_solver.hpp"
 
 #include <algorithm>
@@ -110,7 +111,8 @@ std::optional<StepSolution> solveStep(
     double time_step,
     bool initial_operating_point,
     const std::unordered_map<ComponentId, double>& capacitor_voltages,
-    const std::unordered_map<ComponentId, double>& inductor_currents)
+    const std::unordered_map<ComponentId, double>& inductor_currents,
+    std::unordered_map<ComponentId, bool>& diode_states)
 {
     std::size_t voltage_source_count = 0;
     std::size_t capacitor_count = 0;
@@ -130,70 +132,54 @@ std::optional<StepSolution> solveStep(
         non_ground_node_count + voltage_source_count +
         (initial_operating_point ? capacitor_count : 0);
 
-    std::vector<std::vector<double>> matrix(
-        unknown_count,
-        std::vector<double>(unknown_count, 0.0));
-    std::vector<double> right_hand_side(unknown_count, 0.0);
-
-    StepSolution step_solution;
-    std::size_t voltage_source_index = 0;
-    std::size_t capacitor_source_index = 0;
-
-    for (const Component& component : circuit.components())
+    constexpr int kMaxDiodeIterations = 50;
+    for (int iteration = 0; iteration < kMaxDiodeIterations; ++iteration)
     {
-        const NodeId first_node = portNode(circuit, component, 0);
-        const NodeId second_node = portNode(circuit, component, 1);
+        std::vector<std::vector<double>> matrix(
+            unknown_count,
+            std::vector<double>(unknown_count, 0.0));
+        std::vector<double> right_hand_side(unknown_count, 0.0);
 
-        if (component.definition.type == ComponentType::kResistor)
+        StepSolution step_solution;
+        std::size_t voltage_source_index = 0;
+        std::size_t capacitor_source_index = 0;
+
+        for (const Component& component : circuit.components())
         {
-            const auto& parameters =
-                std::get<ResistorParameters>(component.definition.parameters);
-            if (first_node != second_node)
+            const NodeId first_node = portNode(circuit, component, 0);
+            const NodeId second_node = portNode(circuit, component, 1);
+
+            if (component.definition.type == ComponentType::kResistor)
             {
-                stampConductance(
-                    matrix,
+                const auto& parameters =
+                    std::get<ResistorParameters>(component.definition.parameters);
+                if (first_node != second_node)
+                {
+                    stampConductance(
+                        matrix,
+                        node_indices,
+                        first_node,
+                        second_node,
+                        1.0 / parameters.resistance);
+                }
+            }
+            else if (component.definition.type == ComponentType::kCurrentSource)
+            {
+                const auto& parameters =
+                    std::get<CurrentSourceParameters>(component.definition.parameters);
+                stampCurrentSource(
+                    right_hand_side,
                     node_indices,
                     first_node,
                     second_node,
-                    1.0 / parameters.resistance);
+                    parameters.current);
             }
-        }
-        else if (component.definition.type == ComponentType::kCurrentSource)
-        {
-            const auto& parameters =
-                std::get<CurrentSourceParameters>(component.definition.parameters);
-            stampCurrentSource(
-                right_hand_side,
-                node_indices,
-                first_node,
-                second_node,
-                parameters.current);
-        }
-        else if (component.definition.type == ComponentType::kVoltageSource)
-        {
-            const auto& parameters =
-                std::get<VoltageSourceParameters>(component.definition.parameters);
-            const std::size_t source_row = non_ground_node_count + voltage_source_index++;
-            step_solution.voltage_source_rows[component.id] = source_row;
-            stampVoltageSource(
-                matrix,
-                right_hand_side,
-                node_indices,
-                first_node,
-                second_node,
-                source_row,
-                parameters.voltage);
-        }
-        else if (component.definition.type == ComponentType::kCapacitor)
-        {
-            const auto& parameters =
-                std::get<CapacitorParameters>(component.definition.parameters);
-
-            if (initial_operating_point)
+            else if (component.definition.type == ComponentType::kVoltageSource)
             {
-                const std::size_t source_row =
-                    non_ground_node_count + voltage_source_count + capacitor_source_index++;
-                step_solution.capacitor_source_rows[component.id] = source_row;
+                const auto& parameters =
+                    std::get<VoltageSourceParameters>(component.definition.parameters);
+                const std::size_t source_row = non_ground_node_count + voltage_source_index++;
+                step_solution.voltage_source_rows[component.id] = source_row;
                 stampVoltageSource(
                     matrix,
                     right_hand_side,
@@ -201,66 +187,152 @@ std::optional<StepSolution> solveStep(
                     first_node,
                     second_node,
                     source_row,
-                    parameters.initial_voltage);
+                    parameters.voltage);
             }
-            else
+            else if (component.definition.type == ComponentType::kCapacitor)
             {
-                const double conductance = parameters.capacitance / time_step;
+                const auto& parameters =
+                    std::get<CapacitorParameters>(component.definition.parameters);
+
+                if (initial_operating_point)
+                {
+                    const std::size_t source_row =
+                        non_ground_node_count + voltage_source_count + capacitor_source_index++;
+                    step_solution.capacitor_source_rows[component.id] = source_row;
+                    stampVoltageSource(
+                        matrix,
+                        right_hand_side,
+                        node_indices,
+                        first_node,
+                        second_node,
+                        source_row,
+                        parameters.initial_voltage);
+                }
+                else
+                {
+                    const double conductance = parameters.capacitance / time_step;
+                    stampConductance(
+                        matrix,
+                        node_indices,
+                        first_node,
+                        second_node,
+                        conductance);
+                    stampCurrentSource(
+                        right_hand_side,
+                        node_indices,
+                        first_node,
+                        second_node,
+                        -conductance * capacitor_voltages.at(component.id));
+                }
+            }
+            else if (component.definition.type == ComponentType::kInductor)
+            {
+                const auto& parameters =
+                    std::get<InductorParameters>(component.definition.parameters);
+
+                if (initial_operating_point)
+                {
+                    stampCurrentSource(
+                        right_hand_side,
+                        node_indices,
+                        first_node,
+                        second_node,
+                        parameters.initial_current);
+                }
+                else
+                {
+                    const double conductance = time_step / parameters.inductance;
+                    stampConductance(
+                        matrix,
+                        node_indices,
+                        first_node,
+                        second_node,
+                        conductance);
+                    stampCurrentSource(
+                        right_hand_side,
+                        node_indices,
+                        first_node,
+                        second_node,
+                        inductor_currents.at(component.id));
+                }
+            }
+            else if (component.definition.type == ComponentType::kDiode)
+            {
+                const auto& parameters =
+                    std::get<DiodeParameters>(component.definition.parameters);
+                const bool conducting = diode_states.at(component.id);
                 stampConductance(
                     matrix,
                     node_indices,
                     first_node,
                     second_node,
-                    conductance);
+                    diodeConductance(parameters, conducting));
                 stampCurrentSource(
                     right_hand_side,
                     node_indices,
                     first_node,
                     second_node,
-                    -conductance * capacitor_voltages.at(component.id));
+                    diodeCurrentSource(parameters, conducting));
+            }
+            else if (component.definition.type == ComponentType::kSwitch)
+            {
+                const auto& parameters =
+                    std::get<SwitchParameters>(component.definition.parameters);
+                stampConductance(
+                    matrix,
+                    node_indices,
+                    first_node,
+                    second_node,
+                    switchConductance(parameters));
             }
         }
-        else if (component.definition.type == ComponentType::kInductor)
+
+        auto solution = detail::solveLinearSystem(std::move(matrix), std::move(right_hand_side));
+        if (!solution.has_value())
         {
-            const auto& parameters =
-                std::get<InductorParameters>(component.definition.parameters);
+            return std::nullopt;
+        }
 
-            if (initial_operating_point)
+        const auto candidate_voltage_at = [&](NodeId node)
+        {
+            if (node == kGroundNodeId)
             {
-                stampCurrentSource(
-                    right_hand_side,
-                    node_indices,
-                    first_node,
-                    second_node,
-                    parameters.initial_current);
+                return 0.0;
             }
-            else
+
+            return solution->at(node_indices.at(node));
+        };
+
+        bool diode_changed = false;
+        for (const Component& component : circuit.components())
+        {
+            if (component.definition.type != ComponentType::kDiode)
             {
-                const double conductance = time_step / parameters.inductance;
-                stampConductance(
-                    matrix,
-                    node_indices,
-                    first_node,
-                    second_node,
-                    conductance);
-                stampCurrentSource(
-                    right_hand_side,
-                    node_indices,
-                    first_node,
-                    second_node,
-                    inductor_currents.at(component.id));
+                continue;
             }
+
+            const auto& parameters =
+                std::get<DiodeParameters>(component.definition.parameters);
+            const NodeId first_node = portNode(circuit, component, 0);
+            const NodeId second_node = portNode(circuit, component, 1);
+            const Voltage branch_voltage =
+                candidate_voltage_at(first_node) - candidate_voltage_at(second_node);
+            const bool conducting = diodeConducts(branch_voltage, parameters);
+            if (conducting != diode_states[component.id])
+            {
+                diode_states[component.id] = conducting;
+                diode_changed = true;
+            }
+        }
+
+        step_solution.values = std::move(*solution);
+        if (!diode_changed)
+        {
+            return step_solution;
         }
     }
 
-    auto solution = detail::solveLinearSystem(std::move(matrix), std::move(right_hand_side));
-    if (!solution.has_value())
-    {
-        return std::nullopt;
-    }
-
-    step_solution.values = std::move(*solution);
-    return step_solution;
+    return std::nullopt;
 }
 
 std::vector<NodeId> sortedNodeIds(const CircuitModel& circuit)
@@ -321,9 +393,30 @@ bool validateDynamicComponent(const Component& component)
         return finite(parameters.voltage);
     }
 
+    if (component.definition.type == ComponentType::kCurrentSource)
+    {
+        const auto& parameters =
+            std::get<CurrentSourceParameters>(component.definition.parameters);
+        return finite(parameters.current);
+    }
+
+    if (component.definition.type == ComponentType::kDiode)
+    {
+        const auto& parameters =
+            std::get<DiodeParameters>(component.definition.parameters);
+        return finite(parameters.forward_voltage) &&
+               finite(parameters.on_resistance) &&
+               finite(parameters.off_resistance) &&
+               parameters.on_resistance > 0.0 &&
+               parameters.off_resistance > 0.0;
+    }
+
     const auto& parameters =
-        std::get<CurrentSourceParameters>(component.definition.parameters);
-    return finite(parameters.current);
+        std::get<SwitchParameters>(component.definition.parameters);
+    return finite(parameters.on_resistance) &&
+           finite(parameters.off_resistance) &&
+           parameters.on_resistance > 0.0 &&
+           parameters.off_resistance > 0.0;
 }
 
 }  // namespace
@@ -405,6 +498,7 @@ std::optional<TransientResult> simulateTransient(
 
     std::unordered_map<ComponentId, double> capacitor_voltages;
     std::unordered_map<ComponentId, double> inductor_currents;
+    std::unordered_map<ComponentId, bool> diode_states;
 
     for (const Component& component : circuit.components())
     {
@@ -437,6 +531,10 @@ std::optional<TransientResult> simulateTransient(
             inductor_currents[component.id] =
                 std::get<InductorParameters>(component.definition.parameters).initial_current;
         }
+        else if (component.definition.type == ComponentType::kDiode)
+        {
+            diode_states[component.id] = false;
+        }
     }
 
     const std::size_t sample_count =
@@ -464,7 +562,8 @@ std::optional<TransientResult> simulateTransient(
             settings.time_step,
             initial_sample,
             capacitor_voltages,
-            inductor_currents);
+            inductor_currents,
+            diode_states);
         if (!step.has_value())
         {
             return std::nullopt;
@@ -546,6 +645,21 @@ std::optional<TransientResult> simulateTransient(
                         (first_voltage - second_voltage) * conductance +
                         inductor_currents.at(component_id);
                 }
+            }
+            else if (component->definition.type == ComponentType::kDiode)
+            {
+                const auto& parameters =
+                    std::get<DiodeParameters>(component->definition.parameters);
+                current = diodeCurrent(
+                    parameters,
+                    diode_states.at(component_id),
+                    first_voltage - second_voltage);
+            }
+            else if (component->definition.type == ComponentType::kSwitch)
+            {
+                const auto& parameters =
+                    std::get<SwitchParameters>(component->definition.parameters);
+                current = switchCurrent(parameters, first_voltage - second_voltage);
             }
 
             component_row.push_back(current);

@@ -175,6 +175,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/circuit/dc_solver_test.cpp
         tests/unit/circuit/transient_solver_test.cpp
         tests/unit/circuit/source_test.cpp
+        tests/unit/circuit/nonlinear_test.cpp
     )
 
     target_link_libraries(srp_unit_tests

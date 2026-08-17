@@ -30,6 +30,10 @@ bool matchesType(ComponentType type, const ComponentParameters& parameters)
         return std::holds_alternative<VoltageSourceParameters>(parameters);
     case ComponentType::kCurrentSource:
         return std::holds_alternative<CurrentSourceParameters>(parameters);
+    case ComponentType::kDiode:
+        return std::holds_alternative<DiodeParameters>(parameters);
+    case ComponentType::kSwitch:
+        return std::holds_alternative<SwitchParameters>(parameters);
     }
 
     return false;
@@ -49,6 +53,10 @@ const char* componentTypeName(ComponentType type)
         return "VoltageSource";
     case ComponentType::kCurrentSource:
         return "CurrentSource";
+    case ComponentType::kDiode:
+        return "Diode";
+    case ComponentType::kSwitch:
+        return "Switch";
     }
 
     return "Unknown";
@@ -63,6 +71,8 @@ std::size_t defaultPortCount(ComponentType type)
     case ComponentType::kInductor:
     case ComponentType::kVoltageSource:
     case ComponentType::kCurrentSource:
+    case ComponentType::kDiode:
+    case ComponentType::kSwitch:
         return 2;
     }
 
@@ -80,6 +90,10 @@ std::vector<std::string> defaultPortNames(ComponentType type)
     case ComponentType::kVoltageSource:
     case ComponentType::kCurrentSource:
         return {"positive", "negative"};
+    case ComponentType::kDiode:
+        return {"anode", "cathode"};
+    case ComponentType::kSwitch:
+        return {"terminal_a", "terminal_b"};
     }
 
     return {};

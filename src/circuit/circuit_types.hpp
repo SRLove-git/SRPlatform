@@ -32,7 +32,9 @@ enum class ComponentType
     kCapacitor,
     kInductor,
     kVoltageSource,
-    kCurrentSource
+    kCurrentSource,
+    kDiode,
+    kSwitch
 };
 
 struct ResistorParameters
@@ -62,12 +64,28 @@ struct CurrentSourceParameters
     Current current{0.0};
 };
 
+struct DiodeParameters
+{
+    Voltage forward_voltage{0.7};
+    Resistance on_resistance{1e-3};
+    Resistance off_resistance{1e9};
+};
+
+struct SwitchParameters
+{
+    bool closed{false};
+    Resistance on_resistance{1e-3};
+    Resistance off_resistance{1e9};
+};
+
 using ComponentParameters = std::variant<
     ResistorParameters,
     CapacitorParameters,
     InductorParameters,
     VoltageSourceParameters,
-    CurrentSourceParameters>;
+    CurrentSourceParameters,
+    DiodeParameters,
+    SwitchParameters>;
 
 struct ComponentDefinition
 {
