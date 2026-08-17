@@ -146,6 +146,7 @@ add_library(srp_mod
     src/mod/gltf_model.cpp
     src/mod/mod_package.cpp
     src/mod/entity_blueprint.cpp
+    src/mod/mod_registry.cpp
 )
 
 target_include_directories(srp_mod
@@ -306,6 +307,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/mod/gltf_model_test.cpp
         tests/unit/mod/mod_package_test.cpp
         tests/unit/mod/entity_blueprint_test.cpp
+        tests/unit/mod/mod_registry_test.cpp
         tests/unit/bridge/battery_model_test.cpp
         tests/unit/bridge/bridge_test.cpp
         tests/unit/bridge/car_entity_test.cpp

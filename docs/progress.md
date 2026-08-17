@@ -102,7 +102,7 @@
 | 5.4 | 建立元件库 | 用户可注册自定义元件 | ✅ |
 | 5.5 | 打包与热加载脚本 | Mod 脚本可单独加载更新 | ✅ |
 | 5.6 | 加载实体蓝图 | 蓝图可创建完整车辆、机器人 | ✅ |
-| 5.7 | 处理 Mod 依赖与 ID | 依赖检查、重名冲突可诊断 | ⬜ |
+| 5.7 | 处理 Mod 依赖与 ID | 依赖检查、重名冲突可诊断 | ✅ |
 | 5.8 | 制作示例 Mod | 外部 Mod 能完整创建并运行一个物体 | ⬜ |
 
 ## Phase 6：编辑器与学习体验
@@ -135,4 +135,4 @@ Phase 3 已完成。3.1 执行器与传感器接口、3.2 电池模型、3.3 直
 
 Phase 4 已完成：螺旋桨、四旋翼受力、IMU、编码器、距离传感器、PID 控制示例、无人机悬停演示全部完成，脚本可让无人机稳定悬停在目标高度。
 
-Phase 5 进行中。5.1 Mod 清单格式已完成：`mod.json` 定义 id、name、version、description、author、entry、requires 字段，支持从 JSON 或文件解析并严格校验，格式说明见 docs/mod-manifest.md。5.2 GLTF 模型导入已完成：支持 glTF 2.0 的内嵌 base64 与外部 .bin 缓冲、FLOAT VEC3 位置/法线、U16/U32 索引和节点 matrix/TRS 变换，网格可经 debug_draw 直接绘制。5.3 电路网表导入已完成：外部 JSON 网表可加载为 CircuitModel，支持全部元件类型、隐式节点与地别名（gnd/ground/0），格式说明见 docs/netlist-format.md。5.4 元件库已完成：ComponentLibrary 可注册自定义元件模板（内置类型始终可用），网表加载时可解析自定义类型并允许覆盖模板参数。5.5 打包与热加载已完成：ModPackage 加载 mod.json 并校验入口脚本；HotReloadScriptHost 按文件加载脚本，文件修改后自动热重载。5.6 实体蓝图已完成：EntityBlueprint 定义 id/kind/parameters，createEntity 可实例化小车和无人机并应用参数，格式说明见 docs/entity-blueprint.md。下一步是 5.7 处理 Mod 依赖与 ID。
+Phase 5 进行中。5.1 Mod 清单格式已完成：`mod.json` 定义 id、name、version、description、author、entry、requires 字段，支持从 JSON 或文件解析并严格校验，格式说明见 docs/mod-manifest.md。5.2 GLTF 模型导入已完成：支持 glTF 2.0 的内嵌 base64 与外部 .bin 缓冲、FLOAT VEC3 位置/法线、U16/U32 索引和节点 matrix/TRS 变换，网格可经 debug_draw 直接绘制。5.3 电路网表导入已完成：外部 JSON 网表可加载为 CircuitModel，支持全部元件类型、隐式节点与地别名（gnd/ground/0），格式说明见 docs/netlist-format.md。5.4 元件库已完成：ComponentLibrary 可注册自定义元件模板（内置类型始终可用），网表加载时可解析自定义类型并允许覆盖模板参数。5.5 打包与热加载已完成：ModPackage 加载 mod.json 并校验入口脚本；HotReloadScriptHost 按文件加载脚本，文件修改后自动热重载。5.6 实体蓝图已完成：EntityBlueprint 定义 id/kind/parameters，createEntity 可实例化小车和无人机并应用参数，格式说明见 docs/entity-blueprint.md。5.7 Mod 依赖与 ID 已完成：resolveModDependencies 可检测重复 ID、缺失依赖和依赖环，并给出依赖优先的加载顺序。下一步是 5.8 制作示例 Mod。
