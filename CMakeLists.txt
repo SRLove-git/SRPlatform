@@ -178,6 +178,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/circuit/source_test.cpp
         tests/unit/circuit/nonlinear_test.cpp
         tests/unit/circuit/digital_solver_test.cpp
+        tests/unit/circuit/regression_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
