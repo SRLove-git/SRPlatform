@@ -289,6 +289,7 @@ add_library(srp_editor
     src/editor/script_editor.cpp
     src/editor/time_series.cpp
     src/editor/sim_observer.cpp
+    src/editor/simulation_control.cpp
 )
 
 target_include_directories(srp_editor
@@ -392,6 +393,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/editor/circuit_editor_test.cpp
         tests/unit/editor/script_editor_test.cpp
         tests/unit/editor/observation_test.cpp
+        tests/unit/editor/simulation_control_test.cpp
     )
 
     target_link_libraries(srp_unit_tests

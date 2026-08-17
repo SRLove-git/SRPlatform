@@ -7,6 +7,7 @@
 #include "editor/scene_editor.hpp"
 #include "editor/script_editor.hpp"
 #include "editor/sim_observer.hpp"
+#include "editor/simulation_control.hpp"
 #include "editor/time_series.hpp"
 #include "rendering/debug_draw.hpp"
 #include "scripting/car_closed_loop_demo.hpp"
@@ -70,6 +71,7 @@ std::string g_script_status;
 srp::editor::SimObserver g_observer;
 srp::bridge::DistanceSensorModel g_front_sensor;
 bool g_observation_enabled = true;
+srp::editor::SimulationControl g_sim_control;
 
 constexpr float kCircuitScale = 60.0f;
 
@@ -1078,7 +1080,15 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_
         {
             const std::optional<srp::physics::BodyId> selected =
                 g_scene_editor->selected();
-            if (w_param == VK_DELETE && selected.has_value())
+            if (w_param == VK_SPACE)
+            {
+                g_sim_control.toggle();
+            }
+            else if (w_param == VK_RIGHT)
+            {
+                g_sim_control.requestStep();
+            }
+            else if (w_param == VK_DELETE && selected.has_value())
             {
                 g_scene_editor->removeBody(*selected);
             }
@@ -1264,7 +1274,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         const auto now = srp::core::FixedStepLoop::Clock::now();
         const auto update = fixed_loop.advance(now);
 
-        for (std::size_t i = 0; i < update.steps; ++i)
+        const std::size_t steps_to_run =
+            g_sim_control.stepsToRun(config.simulation.max_steps_per_frame);
+        for (std::size_t i = 0; i < steps_to_run; ++i)
         {
             scene_editor.world().step(config.simulation.fixed_dt);
             car_demo.step(config.simulation.fixed_dt);
@@ -1317,11 +1329,33 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         drawScriptPanel();
 
         ImGui::SetNextWindowPos(ImVec2(10.0f, 810.0f), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(300.0f, 80.0f), ImGuiCond_FirstUseEver);
-        ImGui::Begin("Tool UI");
-        ImGui::Text("Simulation ticks: %llu", g_simulation_ticks);
-        ImGui::Text("Render frames: %llu", g_render_frames);
-        ImGui::Text("Fixed steps this frame: %zu", update.steps);
+        ImGui::SetNextWindowSize(ImVec2(320.0f, 90.0f), ImGuiCond_FirstUseEver);
+        ImGui::Begin("Simulation");
+        const bool sim_running = g_sim_control.isRunning();
+        if (ImGui::Button(sim_running ? "Pause" : "Play"))
+        {
+            g_sim_control.toggle();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Step"))
+        {
+            g_sim_control.requestStep();
+        }
+        ImGui::SameLine();
+        float speed_value = static_cast<float>(g_sim_control.speed());
+        if (ImGui::SliderFloat(
+                "Speed",
+                &speed_value,
+                0.0f,
+                4.0f,
+                "%.1fx"))
+        {
+            g_sim_control.setSpeed(speed_value);
+        }
+        ImGui::Text(
+            "%s | steps: %llu | Space pause/play, Right step",
+            sim_running ? "running" : "paused",
+            g_sim_control.stepsTaken());
         ImGui::End();
 
         ImGui::Render();
@@ -1333,7 +1367,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
             : 0.0;
 
         std::wstring title =
-            L"SRPlatform | sim=" + std::to_wstring(g_simulation_ticks) +
+            L"SRPlatform | " +
+            std::wstring(sim_running ? L"running" : L"paused") +
+            L" | sim=" + std::to_wstring(g_simulation_ticks) +
             L" frames=" + std::to_wstring(g_render_frames) +
             L" alpha=" + std::to_wstring(update.alpha) +
             L" car_x=" + std::to_wstring(car_x);
