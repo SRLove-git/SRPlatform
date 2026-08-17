@@ -114,6 +114,7 @@ srp_enable_warnings(srp_circuit)
 add_library(srp_bridge
     src/bridge/battery_model.cpp
     src/bridge/bridge.cpp
+    src/bridge/dc_motor_model.cpp
 )
 
 target_include_directories(srp_bridge
@@ -198,6 +199,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/circuit/regression_test.cpp
         tests/unit/bridge/battery_model_test.cpp
         tests/unit/bridge/bridge_test.cpp
+        tests/unit/bridge/dc_motor_model_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
