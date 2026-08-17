@@ -37,7 +37,8 @@ enum class ComponentType
     kSwitch,
     kDigitalSource,
     kLogicGate,
-    kDFlipFlop
+    kDFlipFlop,
+    kPwmSource
 };
 
 enum class LogicGateType
@@ -108,6 +109,12 @@ struct DFlipFlopParameters
     bool initial_q{false};
 };
 
+struct PwmSourceParameters
+{
+    double frequency_hz{1000.0};
+    double duty_cycle{0.5};
+};
+
 using ComponentParameters = std::variant<
     ResistorParameters,
     CapacitorParameters,
@@ -118,7 +125,8 @@ using ComponentParameters = std::variant<
     SwitchParameters,
     DigitalSourceParameters,
     LogicGateParameters,
-    DFlipFlopParameters>;
+    DFlipFlopParameters,
+    PwmSourceParameters>;
 
 struct ComponentDefinition
 {

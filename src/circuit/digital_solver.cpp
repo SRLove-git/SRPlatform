@@ -53,6 +53,12 @@ bool sourceValue(const DigitalSourceParameters& parameters, double time)
     return parameters.initial_value != toggle;
 }
 
+bool pwmValue(const PwmSourceParameters& parameters, double time)
+{
+    const double phase = std::fmod(time * parameters.frequency_hz, 1.0);
+    return phase < parameters.duty_cycle;
+}
+
 bool evaluateGate(LogicGateType type, const std::vector<bool>& inputs)
 {
     switch (type)
@@ -100,6 +106,14 @@ bool validDigitalComponent(const Component& component)
             std::get<DigitalSourceParameters>(component.definition.parameters);
         return component.ports.size() == 1 && finite(parameters.frequency_hz) &&
                parameters.frequency_hz >= 0.0;
+    }
+    case ComponentType::kPwmSource:
+    {
+        const auto& parameters =
+            std::get<PwmSourceParameters>(component.definition.parameters);
+        return component.ports.size() == 1 && finite(parameters.frequency_hz) &&
+               parameters.frequency_hz > 0.0 && finite(parameters.duty_cycle) &&
+               parameters.duty_cycle >= 0.0 && parameters.duty_cycle <= 1.0;
     }
     case ComponentType::kLogicGate:
         return component.ports.size() >= 2;
@@ -204,6 +218,18 @@ std::optional<DigitalResult> simulateDigital(
                     const auto& parameters =
                         std::get<DigitalSourceParameters>(component.definition.parameters);
                     const bool value = sourceValue(parameters, time);
+                    const std::size_t output = nodeIndex(nodes, circuit.port(component.ports[0])->node);
+                    if (values[output] != value)
+                    {
+                        values[output] = value;
+                        changed = true;
+                    }
+                }
+                else if (component.definition.type == ComponentType::kPwmSource)
+                {
+                    const auto& parameters =
+                        std::get<PwmSourceParameters>(component.definition.parameters);
+                    const bool value = pwmValue(parameters, time);
                     const std::size_t output = nodeIndex(nodes, circuit.port(component.ports[0])->node);
                     if (values[output] != value)
                     {

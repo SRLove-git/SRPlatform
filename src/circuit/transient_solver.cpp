@@ -413,7 +413,8 @@ bool validateDynamicComponent(const Component& component)
 
     if (component.definition.type == ComponentType::kDigitalSource ||
         component.definition.type == ComponentType::kLogicGate ||
-        component.definition.type == ComponentType::kDFlipFlop)
+        component.definition.type == ComponentType::kDFlipFlop ||
+        component.definition.type == ComponentType::kPwmSource)
     {
         return false;
     }

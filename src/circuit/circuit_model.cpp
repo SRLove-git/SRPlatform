@@ -40,6 +40,8 @@ bool matchesType(ComponentType type, const ComponentParameters& parameters)
         return std::holds_alternative<LogicGateParameters>(parameters);
     case ComponentType::kDFlipFlop:
         return std::holds_alternative<DFlipFlopParameters>(parameters);
+    case ComponentType::kPwmSource:
+        return std::holds_alternative<PwmSourceParameters>(parameters);
     }
 
     return false;
@@ -69,6 +71,8 @@ const char* componentTypeName(ComponentType type)
         return "LogicGate";
     case ComponentType::kDFlipFlop:
         return "DFlipFlop";
+    case ComponentType::kPwmSource:
+        return "PwmSource";
     }
 
     return "Unknown";
@@ -87,6 +91,7 @@ std::size_t defaultPortCount(ComponentType type)
     case ComponentType::kSwitch:
         return 2;
     case ComponentType::kDigitalSource:
+    case ComponentType::kPwmSource:
         return 1;
     case ComponentType::kLogicGate:
         return 3;
@@ -113,6 +118,7 @@ std::vector<std::string> defaultPortNames(ComponentType type)
     case ComponentType::kSwitch:
         return {"terminal_a", "terminal_b"};
     case ComponentType::kDigitalSource:
+    case ComponentType::kPwmSource:
         return {"output"};
     case ComponentType::kLogicGate:
         return {"input_a", "input_b", "output"};

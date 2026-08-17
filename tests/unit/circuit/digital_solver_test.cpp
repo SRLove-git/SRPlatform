@@ -44,6 +44,23 @@ srp::circuit::ComponentId addLogicGate(
     return id;
 }
 
+srp::circuit::ComponentId addPwmSource(
+    srp::circuit::CircuitModel& circuit,
+    srp::circuit::NodeId output,
+    double frequency_hz,
+    double duty_cycle)
+{
+    srp::circuit::ComponentDefinition definition;
+    definition.type = srp::circuit::ComponentType::kPwmSource;
+    definition.parameters =
+        srp::circuit::PwmSourceParameters{frequency_hz, duty_cycle};
+
+    const srp::circuit::ComponentId id = circuit.addComponent(definition);
+    const srp::circuit::Component* component = circuit.component(id);
+    circuit.connectPort(component->ports[0], output);
+    return id;
+}
+
 srp::circuit::ComponentId addDFlipFlop(
     srp::circuit::CircuitModel& circuit,
     srp::circuit::NodeId data,
@@ -176,4 +193,27 @@ TEST(DigitalSolver, DFlipFlopKeepsStateWithoutClockEdge)
     const std::size_t last = result->times.size() - 1;
     EXPECT_FALSE(*srp::circuit::nodeValueAt(*result, q, last));
     EXPECT_TRUE(*srp::circuit::nodeValueAt(*result, qbar, last));
+}
+
+TEST(DigitalSolver, PwmSourceHonorsDutyCycle)
+{
+    srp::circuit::CircuitModel circuit;
+    const srp::circuit::NodeId pwm = circuit.addNode("pwm");
+
+    addPwmSource(circuit, pwm, 1000.0, 0.25);
+
+    srp::circuit::DigitalSettings settings;
+    settings.time_step = 1e-4;
+    settings.end_time = 1e-3;
+
+    const auto result = srp::circuit::simulateDigital(circuit, settings);
+
+    ASSERT_TRUE(result.has_value());
+    const std::size_t high_sample = timeIndex(*result, 1e-4);
+    const std::size_t low_sample = timeIndex(*result, 3e-4);
+    ASSERT_LT(high_sample, result->times.size());
+    ASSERT_LT(low_sample, result->times.size());
+
+    EXPECT_TRUE(*srp::circuit::nodeValueAt(*result, pwm, high_sample));
+    EXPECT_FALSE(*srp::circuit::nodeValueAt(*result, pwm, low_sample));
 }
