@@ -96,6 +96,17 @@ target_link_libraries(srp_physics
 
 srp_enable_warnings(srp_physics)
 
+add_library(srp_circuit
+    src/circuit/circuit_model.cpp
+)
+
+target_include_directories(srp_circuit
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+srp_enable_warnings(srp_circuit)
+
 add_library(srp_rendering
     src/rendering/debug_draw.cpp
 )
@@ -157,12 +168,14 @@ if(SRP_BUILD_TESTS)
         tests/unit/physics/restitution_friction_test.cpp
         tests/unit/physics/joint_test.cpp
         tests/unit/physics/regression_test.cpp
+        tests/unit/circuit/circuit_model_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
         PRIVATE
             srp_core
             srp_physics
+            srp_circuit
             GTest::gtest_main
     )
 
