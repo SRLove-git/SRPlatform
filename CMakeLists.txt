@@ -33,6 +33,14 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(json)
 
+FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.1
+)
+
+FetchContent_MakeAvailable(glm)
+
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
@@ -62,6 +70,7 @@ target_link_libraries(srp_core
     PUBLIC
         spdlog::spdlog
         nlohmann_json::nlohmann_json
+        glm::glm
 )
 
 srp_enable_warnings(srp_core)
@@ -99,6 +108,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/core/version_test.cpp
         tests/unit/core/fixed_step_loop_test.cpp
         tests/unit/core/app_config_test.cpp
+        tests/unit/core/math_types_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
