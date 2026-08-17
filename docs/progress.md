@@ -98,7 +98,7 @@
 | --- | --- | --- | --- |
 | 5.1 | 定义 Mod 清单格式 | `mod.json` 字段明确 | ✅ |
 | 5.2 | 导入 GLTF 模型 | 外部模型可在场景中显示 | ✅ |
-| 5.3 | 导入电路网表 | 外部 JSON 电路可被加载 | ⬜ |
+| 5.3 | 导入电路网表 | 外部 JSON 电路可被加载 | ✅ |
 | 5.4 | 建立元件库 | 用户可注册自定义元件 | ⬜ |
 | 5.5 | 打包与热加载脚本 | Mod 脚本可单独加载更新 | ⬜ |
 | 5.6 | 加载实体蓝图 | 蓝图可创建完整车辆、机器人 | ⬜ |
@@ -135,4 +135,4 @@ Phase 3 已完成。3.1 执行器与传感器接口、3.2 电池模型、3.3 直
 
 Phase 4 已完成：螺旋桨、四旋翼受力、IMU、编码器、距离传感器、PID 控制示例、无人机悬停演示全部完成，脚本可让无人机稳定悬停在目标高度。
 
-Phase 5 进行中。5.1 Mod 清单格式已完成：`mod.json` 定义 id、name、version、description、author、entry、requires 字段，支持从 JSON 或文件解析并严格校验，格式说明见 docs/mod-manifest.md。5.2 GLTF 模型导入已完成：支持 glTF 2.0 的内嵌 base64 与外部 .bin 缓冲、FLOAT VEC3 位置/法线、U16/U32 索引和节点 matrix/TRS 变换，网格可经 debug_draw 直接绘制。下一步是 5.3 导入电路网表。
+Phase 5 进行中。5.1 Mod 清单格式已完成：`mod.json` 定义 id、name、version、description、author、entry、requires 字段，支持从 JSON 或文件解析并严格校验，格式说明见 docs/mod-manifest.md。5.2 GLTF 模型导入已完成：支持 glTF 2.0 的内嵌 base64 与外部 .bin 缓冲、FLOAT VEC3 位置/法线、U16/U32 索引和节点 matrix/TRS 变换，网格可经 debug_draw 直接绘制。5.3 电路网表导入已完成：外部 JSON 网表可加载为 CircuitModel，支持全部元件类型、隐式节点与地别名（gnd/ground/0），格式说明见 docs/netlist-format.md。下一步是 5.4 建立元件库。

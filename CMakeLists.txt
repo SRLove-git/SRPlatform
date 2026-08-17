@@ -125,11 +125,17 @@ add_library(srp_circuit
     src/circuit/dc_solver.cpp
     src/circuit/transient_solver.cpp
     src/circuit/digital_solver.cpp
+    src/circuit/netlist_loader.cpp
 )
 
 target_include_directories(srp_circuit
     PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(srp_circuit
+    PUBLIC
+        nlohmann_json::nlohmann_json
 )
 
 srp_enable_warnings(srp_circuit)
@@ -286,6 +292,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/circuit/nonlinear_test.cpp
         tests/unit/circuit/digital_solver_test.cpp
         tests/unit/circuit/regression_test.cpp
+        tests/unit/circuit/netlist_loader_test.cpp
         tests/unit/control/pid_controller_test.cpp
         tests/unit/control/hover_controller_test.cpp
         tests/unit/mod/mod_manifest_test.cpp
