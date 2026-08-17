@@ -68,7 +68,7 @@ private:
     math::Vec3 gravity_{0.0, -9.81, 0.0};
 
     std::vector<Contact> generateContacts() const;
-    void solveContacts(const std::vector<Contact>& contacts);
+    void solveContacts(std::vector<Contact>& contacts);
     void solveJoints(double dt);
     void solveWheelJoint(const Joint& joint, double dt);
 };

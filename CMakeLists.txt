@@ -287,6 +287,8 @@ add_library(srp_editor
     src/editor/scene_editor.cpp
     src/editor/circuit_editor.cpp
     src/editor/script_editor.cpp
+    src/editor/time_series.cpp
+    src/editor/sim_observer.cpp
 )
 
 target_include_directories(srp_editor
@@ -299,6 +301,7 @@ target_link_libraries(srp_editor
         srp_core
         srp_physics
         srp_circuit
+        srp_bridge
 )
 
 srp_enable_warnings(srp_editor)
@@ -349,6 +352,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/physics/joint_test.cpp
         tests/unit/physics/wheel_constraint_test.cpp
         tests/unit/physics/body_removal_test.cpp
+        tests/unit/physics/contact_impulse_test.cpp
         tests/unit/physics/regression_test.cpp
         tests/unit/circuit/circuit_model_test.cpp
         tests/unit/circuit/dc_solver_test.cpp
@@ -387,6 +391,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/editor/scene_editor_test.cpp
         tests/unit/editor/circuit_editor_test.cpp
         tests/unit/editor/script_editor_test.cpp
+        tests/unit/editor/observation_test.cpp
     )
 
     target_link_libraries(srp_unit_tests

@@ -15,6 +15,9 @@ struct ContactPoint
     math::Vec3 point{0.0};
     math::Vec3 normal{0.0};
     math::Scalar penetration{0.0};
+    // Total normal-impulse magnitude applied by the contact solver across
+    // the last step. Force is approximately impulse / dt.
+    math::Scalar normal_impulse{0.0};
 };
 
 struct Contact

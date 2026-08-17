@@ -2,9 +2,12 @@
 #include "core/config/app_config.hpp"
 #include "core/loop/fixed_step_loop.hpp"
 #include "core/logging.hpp"
+#include "bridge/distance_sensor_model.hpp"
 #include "editor/circuit_editor.hpp"
 #include "editor/scene_editor.hpp"
 #include "editor/script_editor.hpp"
+#include "editor/sim_observer.hpp"
+#include "editor/time_series.hpp"
 #include "rendering/debug_draw.hpp"
 #include "scripting/car_closed_loop_demo.hpp"
 #include "scripting/lua_script_host.hpp"
@@ -63,6 +66,10 @@ srp::editor::ScriptEditor* g_script_editor = nullptr;
 srp::scripting::CarClosedLoopDemo* g_car_demo = nullptr;
 std::optional<srp::circuit::ComponentType> g_circuit_placement;
 std::string g_script_status;
+
+srp::editor::SimObserver g_observer;
+srp::bridge::DistanceSensorModel g_front_sensor;
+bool g_observation_enabled = true;
 
 constexpr float kCircuitScale = 60.0f;
 
@@ -632,6 +639,172 @@ void drawCircuitPanel()
     ImGui::End();
 }
 
+void drawSeriesPlot(
+    ImDrawList* draw_list,
+    const char* label,
+    const srp::editor::TimeSeries& series,
+    const ImVec2& origin,
+    const ImVec2& size)
+{
+    const ImU32 background = IM_COL32(24, 26, 34, 255);
+    const ImU32 border = IM_COL32(90, 100, 120, 255);
+    draw_list->AddRectFilled(origin, ImVec2(origin.x + size.x, origin.y + size.y), background);
+    draw_list->AddRect(origin, ImVec2(origin.x + size.x, origin.y + size.y), border);
+
+    const ImU32 text_color = IM_COL32(190, 200, 215, 255);
+    draw_list->AddText(ImVec2(origin.x + 4.0f, origin.y + 2.0f), text_color, label);
+
+    if (series.size() < 2)
+    {
+        draw_list->AddText(
+            ImVec2(origin.x + 4.0f, origin.y + size.y - 16.0f),
+            IM_COL32(120, 130, 150, 255),
+            "no data");
+        return;
+    }
+
+    const double min_value = series.minimum().value_or(0.0);
+    const double max_value = series.maximum().value_or(0.0);
+    double range = max_value - min_value;
+    if (range < 1e-9)
+    {
+        range = 1.0;
+    }
+
+    const std::vector<std::pair<double, double>>& samples = series.samples();
+    const std::size_t count = samples.size();
+    std::vector<ImVec2> points;
+    points.reserve(count);
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        const float x = origin.x + 2.0f +
+            static_cast<float>(i) / static_cast<float>(count - 1) * (size.x - 4.0f);
+        const float normalized = static_cast<float>(
+            (samples[i].second - min_value) / range);
+        const float y = origin.y + size.y - 14.0f -
+            normalized * (size.y - 20.0f);
+        points.emplace_back(x, y);
+    }
+    draw_list->AddPolyline(
+        points.data(),
+        static_cast<int>(points.size()),
+        IM_COL32(90, 190, 250, 255),
+        ImDrawFlags_None,
+        1.6f);
+
+    char range_label[128]{};
+    std::snprintf(
+        range_label,
+        sizeof(range_label),
+        "min=%.3f max=%.3f last=%.3f",
+        min_value,
+        max_value,
+        series.latestValue().value_or(0.0));
+    draw_list->AddText(
+        ImVec2(origin.x + 4.0f, origin.y + size.y - 14.0f),
+        text_color,
+        range_label);
+}
+
+void drawObservationPanel()
+{
+    ImGui::SetNextWindowPos(ImVec2(560.0f, 10.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(330.0f, 680.0f), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Observations");
+
+    ImGui::Checkbox("Record observations", &g_observation_enabled);
+    if (ImGui::Button("Clear"))
+    {
+        g_observer.clear();
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("samples: %zu", g_observer.channelNames().empty()
+        ? 0u
+        : g_observer.channel(g_observer.channelNames().front()).size());
+
+    static bool show_voltage = true;
+    static bool show_current = true;
+    static bool show_speed = true;
+    static bool show_sensor = true;
+    ImGui::Checkbox("battery voltage", &show_voltage);
+    ImGui::Checkbox("motor current", &show_current);
+    ImGui::Checkbox("chassis speed", &show_speed);
+    ImGui::Checkbox("front distance", &show_sensor);
+    ImGui::Separator();
+
+    const float plot_width = ImGui::GetContentRegionAvail().x;
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    const ImVec2 plot_size(plot_width, 78.0f);
+    ImVec2 origin = ImGui::GetCursorScreenPos();
+
+    if (show_voltage)
+    {
+        drawSeriesPlot(
+            draw_list,
+            "battery_voltage_v",
+            g_observer.channel("battery_voltage_v"),
+            origin,
+            plot_size);
+        origin.y += plot_size.y + 6.0f;
+    }
+    if (show_current)
+    {
+        drawSeriesPlot(
+            draw_list,
+            "motor_current_a",
+            g_observer.channel("motor_current_a"),
+            origin,
+            plot_size);
+        origin.y += plot_size.y + 6.0f;
+    }
+    if (show_speed)
+    {
+        drawSeriesPlot(
+            draw_list,
+            "chassis_speed_m_s",
+            g_observer.channel("chassis_speed_m_s"),
+            origin,
+            plot_size);
+        origin.y += plot_size.y + 6.0f;
+    }
+    if (show_sensor)
+    {
+        drawSeriesPlot(
+            draw_list,
+            "sensor_distance_front_m",
+            g_observer.channel("sensor_distance_front_m"),
+            origin,
+            plot_size);
+    }
+
+    ImGui::Dummy(ImVec2(0.0f, 4.0f));
+    ImGui::Separator();
+    ImGui::Text("Latest values");
+    if (ImGui::BeginTable("##observation_values", 2, ImGuiTableFlags_RowBg))
+    {
+        ImGui::TableSetupColumn("channel");
+        ImGui::TableSetupColumn("value");
+        ImGui::TableHeadersRow();
+        for (const std::string& name : g_observer.channelNames())
+        {
+            const srp::editor::TimeSeries& series = g_observer.channel(name);
+            const std::optional<double> latest = series.latestValue();
+            if (!latest.has_value())
+            {
+                continue;
+            }
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::TextUnformatted(name.c_str());
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%.4f", *latest);
+        }
+        ImGui::EndTable();
+    }
+
+    ImGui::End();
+}
+
 void drawScriptPanel()
 {
     if (g_script_editor == nullptr)
@@ -640,7 +813,7 @@ void drawScriptPanel()
     }
 
     const bool dirty = g_script_editor->dirty();
-    ImGui::SetNextWindowPos(ImVec2(820.0f, 10.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(900.0f, 10.0f), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(560.0f, 420.0f), ImGuiCond_FirstUseEver);
     ImGui::Begin(dirty ? "Script*" : "Script");
 
@@ -1034,6 +1207,11 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
     srp::scripting::CarClosedLoopDemo car_demo;
     g_car_demo = &car_demo;
 
+    srp::bridge::DistanceSensorParameters sensor_parameters;
+    sensor_parameters.max_range_m = 4.0;
+    sensor_parameters.beam_axis_local = srp::math::Vec3(1.0, 0.0, 0.0);
+    g_front_sensor = srp::bridge::DistanceSensorModel(sensor_parameters);
+
     srp::editor::ScriptEditor script_editor;
     g_script_editor = &script_editor;
     std::string script_error;
@@ -1091,6 +1269,31 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
             scene_editor.world().step(config.simulation.fixed_dt);
             car_demo.step(config.simulation.fixed_dt);
             ++g_simulation_ticks;
+
+            if (g_observation_enabled)
+            {
+                srp::editor::sampleCarTelemetry(
+                    car_demo.car(),
+                    scene_editor.world(),
+                    config.simulation.fixed_dt,
+                    g_observer);
+
+                const srp::physics::RigidBodyState* chassis =
+                    car_demo.car().chassisBody();
+                if (chassis != nullptr)
+                {
+                    g_front_sensor.setPose(
+                        chassis->position + srp::math::Vec3(0.0, 0.25, 0.0),
+                        chassis->orientation);
+                    g_front_sensor.update(scene_editor.world());
+                    g_observer.recordSensor(
+                        "distance_front_m",
+                        g_front_sensor.distance());
+                    g_observer.recordSensor(
+                        "distance_detected",
+                        g_front_sensor.detected() ? 1.0 : 0.0);
+                }
+            }
         }
 
         ++g_render_frames;
@@ -1110,9 +1313,11 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 
         drawScenePanel();
         drawCircuitPanel();
+        drawObservationPanel();
         drawScriptPanel();
 
-        ImGui::SetNextWindowPos(ImVec2(1180.0f, 10.0f), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowPos(ImVec2(10.0f, 810.0f), ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize(ImVec2(300.0f, 80.0f), ImGuiCond_FirstUseEver);
         ImGui::Begin("Tool UI");
         ImGui::Text("Simulation ticks: %llu", g_simulation_ticks);
         ImGui::Text("Render frames: %llu", g_render_frames);

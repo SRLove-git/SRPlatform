@@ -334,15 +334,21 @@ std::vector<Contact> PhysicsWorld::generateContacts() const
     return contacts;
 }
 
-void PhysicsWorld::solveContacts(const std::vector<Contact>& contacts)
+void PhysicsWorld::solveContacts(std::vector<Contact>& contacts)
 {
     constexpr int kVelocityIterations = 10;
     constexpr double kPositionCorrectionPercent = 0.8;
     constexpr double kPenetrationSlop = 0.01;
 
+    for (Contact& contact : contacts)
+    {
+        // Reset before accumulating per-iteration impulses below.
+        contact.point.normal_impulse = 0.0;
+    }
+
     for (int iteration = 0; iteration < kVelocityIterations; ++iteration)
     {
-        for (const Contact& contact : contacts)
+        for (Contact& contact : contacts)
         {
             RigidBodyState* body_a = body(contact.body_a);
             RigidBodyState* body_b = body(contact.body_b);
@@ -398,6 +404,7 @@ void PhysicsWorld::solveContacts(const std::vector<Contact>& contacts)
             body_a->angular_velocity -= inverse_inertia_a * glm::cross(radius_a, impulse);
             body_b->linear_velocity += inverse_mass_b * impulse;
             body_b->angular_velocity += inverse_inertia_b * glm::cross(radius_b, impulse);
+            contact.point.normal_impulse += std::abs(impulse_magnitude);
 
             math::Vec3 tangent = relative_velocity - normal * normal_velocity;
             const double tangent_speed_squared = glm::dot(tangent, tangent);
@@ -439,7 +446,7 @@ void PhysicsWorld::solveContacts(const std::vector<Contact>& contacts)
         }
     }
 
-    for (const Contact& contact : contacts)
+        for (const Contact& contact : contacts)
     {
         RigidBodyState* body_a = body(contact.body_a);
         RigidBodyState* body_b = body(contact.body_b);
