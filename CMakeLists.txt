@@ -75,6 +75,22 @@ target_link_libraries(srp_core
 
 srp_enable_warnings(srp_core)
 
+add_library(srp_physics
+    src/physics/rigid_body.cpp
+)
+
+target_include_directories(srp_physics
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(srp_physics
+    PUBLIC
+        srp_core
+)
+
+srp_enable_warnings(srp_physics)
+
 add_executable(srp_cli
     src/app/main.cpp
 )
@@ -109,11 +125,13 @@ if(SRP_BUILD_TESTS)
         tests/unit/core/fixed_step_loop_test.cpp
         tests/unit/core/app_config_test.cpp
         tests/unit/core/math_types_test.cpp
+        tests/unit/physics/rigid_body_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
         PRIVATE
             srp_core
+            srp_physics
             GTest::gtest_main
     )
 
