@@ -79,6 +79,8 @@ add_library(srp_physics
     src/physics/rigid_body.cpp
     src/physics/physics_world.cpp
     src/physics/collision_shape.cpp
+    src/physics/aabb.cpp
+    src/physics/broadphase.cpp
 )
 
 target_include_directories(srp_physics
@@ -130,6 +132,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/physics/rigid_body_test.cpp
         tests/unit/physics/physics_world_test.cpp
         tests/unit/physics/collision_shape_test.cpp
+        tests/unit/physics/broadphase_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
