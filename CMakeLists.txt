@@ -156,6 +156,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/physics/contact_solver_test.cpp
         tests/unit/physics/restitution_friction_test.cpp
         tests/unit/physics/joint_test.cpp
+        tests/unit/physics/regression_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
