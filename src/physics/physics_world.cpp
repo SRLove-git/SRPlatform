@@ -146,7 +146,6 @@ std::vector<Contact> PhysicsWorld::generateContacts() const
 void PhysicsWorld::solveContacts(const std::vector<Contact>& contacts)
 {
     constexpr int kVelocityIterations = 10;
-    constexpr double kRestitution = 0.0;
     constexpr double kPositionCorrectionPercent = 0.8;
     constexpr double kPenetrationSlop = 0.01;
 
@@ -172,6 +171,7 @@ void PhysicsWorld::solveContacts(const std::vector<Contact>& contacts)
             }
 
             const math::Vec3 normal = contact.point.normal;
+            const double restitution = std::max(body_a->restitution, body_b->restitution);
             const math::Vec3 relative_velocity =
                 velocityAtPoint(*body_b, contact.point.point) -
                 velocityAtPoint(*body_a, contact.point.point);
@@ -200,13 +200,51 @@ void PhysicsWorld::solveContacts(const std::vector<Contact>& contacts)
             }
 
             const double impulse_magnitude =
-                -(1.0 + kRestitution) * normal_velocity / denominator;
+                -(1.0 + restitution) * normal_velocity / denominator;
             const math::Vec3 impulse = normal * impulse_magnitude;
 
             body_a->linear_velocity -= inverse_mass_a * impulse;
             body_a->angular_velocity -= inverse_inertia_a * glm::cross(radius_a, impulse);
             body_b->linear_velocity += inverse_mass_b * impulse;
             body_b->angular_velocity += inverse_inertia_b * glm::cross(radius_b, impulse);
+
+            math::Vec3 tangent = relative_velocity - normal * normal_velocity;
+            const double tangent_speed_squared = glm::dot(tangent, tangent);
+            if (tangent_speed_squared > 1e-12)
+            {
+                tangent /= std::sqrt(tangent_speed_squared);
+
+                const math::Vec3 cross_a_tangent = glm::cross(radius_a, tangent);
+                const math::Vec3 cross_b_tangent = glm::cross(radius_b, tangent);
+                const double tangent_denominator =
+                    total_inverse_mass +
+                    glm::dot(cross_a_tangent, inverse_inertia_a * cross_a_tangent) +
+                    glm::dot(cross_b_tangent, inverse_inertia_b * cross_b_tangent);
+
+                if (tangent_denominator > 0.0)
+                {
+                    const double tangent_velocity = glm::dot(relative_velocity, tangent);
+                    const double friction_coefficient =
+                        std::sqrt(std::max(0.0, body_a->friction * body_b->friction));
+                    const double max_friction_impulse =
+                        friction_coefficient * impulse_magnitude;
+
+                    const double friction_impulse_magnitude = std::clamp(
+                        -tangent_velocity / tangent_denominator,
+                        -max_friction_impulse,
+                        max_friction_impulse);
+
+                    const math::Vec3 friction_impulse =
+                        tangent * friction_impulse_magnitude;
+
+                    body_a->linear_velocity -= inverse_mass_a * friction_impulse;
+                    body_a->angular_velocity -=
+                        inverse_inertia_a * glm::cross(radius_a, friction_impulse);
+                    body_b->linear_velocity += inverse_mass_b * friction_impulse;
+                    body_b->angular_velocity +=
+                        inverse_inertia_b * glm::cross(radius_b, friction_impulse);
+                }
+            }
         }
     }
 

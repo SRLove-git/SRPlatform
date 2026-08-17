@@ -27,6 +27,8 @@ struct RigidBodyState
     math::Vec3 angular_velocity{0.0};
     math::Mass mass{1.0};
     math::Mat3 inertia_local{1.0};
+    math::Scalar restitution{0.0};
+    math::Scalar friction{0.5};
     RigidBodyType type{RigidBodyType::kDynamic};
 };
 
