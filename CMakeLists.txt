@@ -41,6 +41,29 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(glm)
 
+set(LUA_BUILD_COMPILER OFF CACHE BOOL "" FORCE)
+set(LUA_BUILD_INTERPRETER OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    lua
+    GIT_REPOSITORY https://github.com/jonpalmisc/cmake_lua.git
+    GIT_TAG fb8ca8ff834102f0a8751b8978aeee0e1d04a874
+)
+
+FetchContent_MakeAvailable(lua)
+
+set(SOL2_TESTS OFF CACHE BOOL "" FORCE)
+set(SOL2_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(SOL2_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    sol2
+    GIT_REPOSITORY https://github.com/ThePhD/sol2.git
+    GIT_TAG c1f95a773c6f8f4fde8ca3efe872e7286afe4444
+)
+
+FetchContent_MakeAvailable(sol2)
+
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
@@ -129,6 +152,24 @@ target_link_libraries(srp_bridge
 
 srp_enable_warnings(srp_bridge)
 
+add_library(srp_scripting
+    src/scripting/lua_script_host.cpp
+)
+
+target_include_directories(srp_scripting
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(srp_scripting
+    PUBLIC
+        srp_core
+        lua::lang
+        sol2::sol2
+)
+
+srp_enable_warnings(srp_scripting)
+
 add_library(srp_rendering
     src/rendering/debug_draw.cpp
 )
@@ -201,6 +242,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/bridge/battery_model_test.cpp
         tests/unit/bridge/bridge_test.cpp
         tests/unit/bridge/dc_motor_model_test.cpp
+        tests/unit/scripting/lua_script_host_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
@@ -209,6 +251,7 @@ if(SRP_BUILD_TESTS)
             srp_physics
             srp_circuit
             srp_bridge
+            srp_scripting
             GTest::gtest_main
     )
 
