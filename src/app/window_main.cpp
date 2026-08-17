@@ -4,10 +4,12 @@
 #include "core/logging.hpp"
 #include "bridge/distance_sensor_model.hpp"
 #include "editor/circuit_editor.hpp"
+#include "editor/playback_controller.hpp"
 #include "editor/scene_editor.hpp"
 #include "editor/script_editor.hpp"
 #include "editor/sim_observer.hpp"
 #include "editor/simulation_control.hpp"
+#include "editor/simulation_recorder.hpp"
 #include "editor/time_series.hpp"
 #include "rendering/debug_draw.hpp"
 #include "scripting/car_closed_loop_demo.hpp"
@@ -72,6 +74,137 @@ srp::editor::SimObserver g_observer;
 srp::bridge::DistanceSensorModel g_front_sensor;
 bool g_observation_enabled = true;
 srp::editor::SimulationControl g_sim_control;
+srp::editor::SimulationRecorder g_recorder;
+srp::editor::PlaybackController g_playback;
+bool g_playback_active = false;
+srp::core::FixedStepLoop::Clock::time_point g_last_frame_time{};
+bool g_has_last_frame_time = false;
+
+std::vector<srp::editor::BodySnapshot> captureBodySnapshots(
+    const srp::editor::SceneEditor& scene_editor,
+    const srp::scripting::CarClosedLoopDemo& car_demo)
+{
+    std::vector<srp::editor::BodySnapshot> snapshots;
+
+    const srp::physics::RigidBodyState* ground =
+        scene_editor.world().body(scene_editor.groundBody());
+    if (ground != nullptr)
+    {
+        srp::editor::BodySnapshot snapshot;
+        snapshot.name = "ground";
+        snapshot.kind = "plane";
+        snapshot.position = ground->position;
+        snapshot.orientation = ground->orientation;
+        snapshots.push_back(std::move(snapshot));
+    }
+
+    for (const srp::editor::BodyEntry& entry : scene_editor.entries())
+    {
+        const srp::physics::RigidBodyState* body =
+            scene_editor.world().body(entry.id);
+        if (body == nullptr)
+        {
+            continue;
+        }
+        srp::editor::BodySnapshot snapshot;
+        snapshot.name = entry.name;
+        snapshot.kind = srp::editor::shapeKindName(entry.kind);
+        snapshot.position = body->position;
+        snapshot.orientation = body->orientation;
+        snapshots.push_back(std::move(snapshot));
+    }
+
+    const srp::physics::RigidBodyState* chassis = car_demo.car().chassisBody();
+    if (chassis != nullptr)
+    {
+        srp::editor::BodySnapshot snapshot;
+        snapshot.name = "car_chassis";
+        snapshot.kind = "chassis";
+        snapshot.position = chassis->position;
+        snapshot.orientation = chassis->orientation;
+        snapshots.push_back(std::move(snapshot));
+    }
+
+    const srp::physics::RigidBodyState* wheel = car_demo.car().wheelBody();
+    if (wheel != nullptr)
+    {
+        srp::editor::BodySnapshot snapshot;
+        snapshot.name = "car_wheel";
+        snapshot.kind = "wheel";
+        snapshot.position = wheel->position;
+        snapshot.orientation = wheel->orientation;
+        snapshots.push_back(std::move(snapshot));
+    }
+
+    return snapshots;
+}
+
+void drawPlaybackBodies(const std::vector<srp::editor::BodySnapshot>& bodies)
+{
+    for (const srp::editor::BodySnapshot& snapshot : bodies)
+    {
+        if (snapshot.kind == "box")
+        {
+            glColor3d(0.35, 0.75, 1.0);
+            srp::physics::BoxShape shape;
+            shape.half_extents = srp::math::Vec3(0.5);
+            srp::rendering::drawCollisionShape(
+                shape,
+                snapshot.position,
+                snapshot.orientation);
+        }
+        else if (snapshot.kind == "sphere")
+        {
+            glColor3d(0.35, 0.75, 1.0);
+            srp::physics::SphereShape shape;
+            shape.radius = 0.5;
+            srp::rendering::drawCollisionShape(
+                shape,
+                snapshot.position,
+                snapshot.orientation);
+        }
+        else if (snapshot.kind == "cylinder")
+        {
+            glColor3d(0.35, 0.75, 1.0);
+            srp::physics::CylinderShape shape;
+            shape.half_height = 0.5;
+            shape.radius = 0.3;
+            srp::rendering::drawCollisionShape(
+                shape,
+                snapshot.position,
+                snapshot.orientation);
+        }
+        else if (snapshot.kind == "chassis")
+        {
+            glColor3d(0.2, 0.9, 0.4);
+            srp::physics::BoxShape shape;
+            shape.half_extents = srp::math::Vec3(0.2, 0.1, 0.2);
+            srp::rendering::drawCollisionShape(
+                shape,
+                snapshot.position,
+                snapshot.orientation);
+        }
+        else if (snapshot.kind == "wheel")
+        {
+            glColor3d(0.95, 0.7, 0.2);
+            srp::physics::SphereShape shape;
+            shape.radius = 0.3;
+            srp::rendering::drawCollisionShape(
+                shape,
+                snapshot.position,
+                snapshot.orientation);
+        }
+        else
+        {
+            glColor3d(0.45, 0.45, 0.5);
+            srp::physics::PlaneShape shape;
+            srp::rendering::drawCollisionShape(
+                shape,
+                snapshot.position,
+                snapshot.orientation);
+        }
+    }
+}
 
 constexpr float kCircuitScale = 60.0f;
 
@@ -270,6 +403,17 @@ void renderScene(
         eye.x, eye.y, eye.z,
         kTarget.x, kTarget.y, kTarget.z,
         0.0, 1.0, 0.0);
+
+    if (g_playback_active)
+    {
+        const std::optional<std::vector<srp::editor::BodySnapshot>> frame =
+            g_playback.frame();
+        if (frame.has_value())
+        {
+            drawPlaybackBodies(*frame);
+        }
+        return;
+    }
 
     const srp::physics::PhysicsWorld& world = scene_editor.world();
     const std::optional<srp::physics::BodyId> selected = scene_editor.selected();
@@ -807,6 +951,114 @@ void drawObservationPanel()
     ImGui::End();
 }
 
+void drawRecordingPanel()
+{
+    ImGui::SetNextWindowPos(ImVec2(560.0f, 700.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(330.0f, 190.0f), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Recording");
+
+    if (g_recorder.recording())
+    {
+        if (ImGui::Button("Stop Recording"))
+        {
+            g_recorder.end();
+        }
+        ImGui::SameLine();
+        ImGui::Text("recording... frames=%zu", g_recorder.size());
+    }
+    else
+    {
+        if (ImGui::Button("Record"))
+        {
+            g_playback_active = false;
+            g_playback.stop();
+            g_recorder.begin();
+        }
+        ImGui::SameLine();
+        ImGui::Text("frames=%zu", g_recorder.size());
+    }
+
+    if (ImGui::Button("Save"))
+    {
+        std::string error;
+        if (!g_recorder.save("assets/recordings/last_sim.json", error))
+        {
+            srp::core::logError("recording save failed: " + error);
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Load"))
+    {
+        std::string error;
+        if (!g_recorder.load("assets/recordings/last_sim.json", error))
+        {
+            srp::core::logError("recording load failed: " + error);
+        }
+        else
+        {
+            g_playback.setSnapshots(g_recorder.snapshots());
+            g_playback_active = false;
+            g_playback.stop();
+        }
+    }
+
+    ImGui::Separator();
+    if (g_playback.hasSnapshots())
+    {
+        float playback_time = static_cast<float>(g_playback.time());
+        const float duration = static_cast<float>(g_playback.duration());
+        if (ImGui::SliderFloat(
+                "Time",
+                &playback_time,
+                0.0f,
+                duration,
+                "%.2f s"))
+        {
+            g_playback.seek(playback_time);
+        }
+
+        if (g_playback_active)
+        {
+            if (ImGui::Button("Pause"))
+            {
+                g_playback.pause();
+            }
+        }
+        else
+        {
+            if (ImGui::Button("Play"))
+            {
+                g_playback.play();
+                g_playback_active = true;
+                g_sim_control.pause();
+            }
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Stop"))
+        {
+            g_playback.stop();
+            g_playback_active = false;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Live"))
+        {
+            g_playback_active = false;
+            g_playback.stop();
+        }
+        ImGui::Text(
+            "playback %.2f / %.2f s (%s)",
+            g_playback.time(),
+            duration,
+            g_playback.isPlaying() ? "playing" : "paused");
+    }
+    else
+    {
+        ImGui::TextDisabled("record or load a simulation first");
+    }
+
+    ImGui::End();
+}
+
 void drawScriptPanel()
 {
     if (g_script_editor == nullptr)
@@ -1274,13 +1526,33 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         const auto now = srp::core::FixedStepLoop::Clock::now();
         const auto update = fixed_loop.advance(now);
 
-        const std::size_t steps_to_run =
-            g_sim_control.stepsToRun(config.simulation.max_steps_per_frame);
+        if (g_playback_active)
+        {
+            if (g_has_last_frame_time)
+            {
+                const double frame_duration =
+                    std::chrono::duration<double>(now - g_last_frame_time).count();
+                g_playback.advance(frame_duration);
+            }
+        }
+        g_last_frame_time = now;
+        g_has_last_frame_time = true;
+
+        const std::size_t steps_to_run = g_playback_active
+            ? 0u
+            : g_sim_control.stepsToRun(config.simulation.max_steps_per_frame);
         for (std::size_t i = 0; i < steps_to_run; ++i)
         {
             scene_editor.world().step(config.simulation.fixed_dt);
             car_demo.step(config.simulation.fixed_dt);
             ++g_simulation_ticks;
+
+            if (g_recorder.recording())
+            {
+                g_recorder.record(
+                    car_demo.car().elapsedTime(),
+                    captureBodySnapshots(scene_editor, car_demo));
+            }
 
             if (g_observation_enabled)
             {
@@ -1326,6 +1598,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         drawScenePanel();
         drawCircuitPanel();
         drawObservationPanel();
+        drawRecordingPanel();
         drawScriptPanel();
 
         ImGui::SetNextWindowPos(ImVec2(10.0f, 810.0f), ImGuiCond_FirstUseEver);
