@@ -7,6 +7,11 @@
 #include <optional>
 #include <string>
 
+namespace srp::bridge
+{
+class Bridge;
+}
+
 namespace srp::scripting
 {
 
@@ -27,6 +32,8 @@ public:
 
     bool hasScript(const std::string& id) const override;
     std::size_t scriptCount() const override;
+
+    void bindControl(std::shared_ptr<bridge::Bridge> bridge);
 
     std::optional<std::string> lastError() const;
     std::optional<double> getNumber(

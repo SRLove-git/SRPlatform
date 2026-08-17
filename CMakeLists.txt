@@ -164,6 +164,7 @@ target_include_directories(srp_scripting
 target_link_libraries(srp_scripting
     PUBLIC
         srp_core
+        srp_bridge
         lua::lang
         sol2::sol2
 )
@@ -243,6 +244,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/bridge/bridge_test.cpp
         tests/unit/bridge/dc_motor_model_test.cpp
         tests/unit/scripting/lua_script_host_test.cpp
+        tests/unit/scripting/script_control_test.cpp
     )
 
     target_link_libraries(srp_unit_tests

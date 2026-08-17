@@ -1,7 +1,10 @@
 #include "scripting/lua_script_host.hpp"
 
+#include "bridge/bridge.hpp"
+
 #include <sol/sol.hpp>
 
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -27,6 +30,7 @@ struct LuaScriptHost::Impl
 {
     sol::state lua;
     std::unordered_map<std::string, std::unique_ptr<Script>> scripts;
+    std::shared_ptr<bridge::Bridge> bridge;
     std::string last_error;
 
     Impl()
@@ -44,6 +48,34 @@ struct LuaScriptHost::Impl
         script->source = source;
 
         sol::environment environment(lua, sol::create, lua.globals());
+
+        environment.set_function(
+            "read_sensor",
+            [this](bridge::SensorId id) -> bridge::SensorValue
+            {
+                if (bridge == nullptr || !bridge->hasSensorBus())
+                {
+                    return std::numeric_limits<double>::quiet_NaN();
+                }
+
+                return bridge->readSensor(id).value_or(
+                    std::numeric_limits<double>::quiet_NaN());
+            });
+
+        environment.set_function(
+            "set_motor",
+            [this](bridge::MotorId id, bridge::ActuatorValue value)
+            {
+                return bridge != nullptr && bridge->setMotor(id, value);
+            });
+
+        environment.set_function(
+            "set_servo",
+            [this](bridge::ServoId id, bridge::ActuatorValue angle)
+            {
+                return bridge != nullptr && bridge->setServo(id, angle);
+            });
+
         const sol::protected_function_result result =
             lua.safe_script(source, environment, sol::script_pass_on_error);
         if (!result.valid())
@@ -145,6 +177,11 @@ bool LuaScriptHost::hasScript(const std::string& id) const
 std::size_t LuaScriptHost::scriptCount() const
 {
     return impl_->scripts.size();
+}
+
+void LuaScriptHost::bindControl(std::shared_ptr<bridge::Bridge> bridge)
+{
+    impl_->bridge = std::move(bridge);
 }
 
 std::optional<std::string> LuaScriptHost::lastError() const
