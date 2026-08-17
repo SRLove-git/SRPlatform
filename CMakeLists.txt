@@ -134,6 +134,18 @@ target_include_directories(srp_circuit
 
 srp_enable_warnings(srp_circuit)
 
+add_library(srp_control
+    src/control/pid_controller.cpp
+    src/control/hover_controller.cpp
+)
+
+target_include_directories(srp_control
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+srp_enable_warnings(srp_control)
+
 add_library(srp_bridge
     src/bridge/battery_model.cpp
     src/bridge/bridge.cpp
@@ -251,6 +263,8 @@ if(SRP_BUILD_TESTS)
         tests/unit/circuit/nonlinear_test.cpp
         tests/unit/circuit/digital_solver_test.cpp
         tests/unit/circuit/regression_test.cpp
+        tests/unit/control/pid_controller_test.cpp
+        tests/unit/control/hover_controller_test.cpp
         tests/unit/bridge/battery_model_test.cpp
         tests/unit/bridge/bridge_test.cpp
         tests/unit/bridge/car_entity_test.cpp
@@ -271,6 +285,7 @@ if(SRP_BUILD_TESTS)
             srp_core
             srp_physics
             srp_circuit
+            srp_control
             srp_bridge
             srp_scripting
             GTest::gtest_main
