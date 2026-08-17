@@ -86,6 +86,8 @@ target_link_libraries(srp_window
         srp_core
         user32
         gdi32
+        opengl32
+        glu32
 )
 
 srp_enable_warnings(srp_window)
