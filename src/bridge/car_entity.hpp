@@ -3,6 +3,7 @@
 #include "bridge/battery_model.hpp"
 #include "bridge/dc_motor_model.hpp"
 #include "bridge/state_recorder.hpp"
+#include "physics/collision_shape.hpp"
 
 #include <memory>
 
@@ -55,6 +56,8 @@ public:
 
     const physics::RigidBodyState* chassisBody() const;
     const physics::RigidBodyState* wheelBody() const;
+    const physics::CollisionShape& chassisShape() const;
+    const physics::CollisionShape& wheelShape() const;
     const StateRecorder& recorder() const;
 
 private:

@@ -213,6 +213,7 @@ add_executable(srp_window WIN32
 target_link_libraries(srp_window
     PRIVATE
         srp_rendering
+        srp_scripting
         user32
         gdi32
 )

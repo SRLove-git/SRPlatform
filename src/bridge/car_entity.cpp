@@ -214,6 +214,20 @@ const physics::RigidBodyState* CarEntity::wheelBody() const
     return impl_->world.body(impl_->wheel_id);
 }
 
+const physics::CollisionShape& CarEntity::chassisShape() const
+{
+    static const physics::CollisionShape kFallback = physics::BoxShape{};
+    const physics::CollisionShape* shape = impl_->world.shape(impl_->chassis_id);
+    return shape != nullptr ? *shape : kFallback;
+}
+
+const physics::CollisionShape& CarEntity::wheelShape() const
+{
+    static const physics::CollisionShape kFallback = physics::SphereShape{};
+    const physics::CollisionShape* shape = impl_->world.shape(impl_->wheel_id);
+    return shape != nullptr ? *shape : kFallback;
+}
+
 const StateRecorder& CarEntity::recorder() const
 {
     return impl_->recorder;
