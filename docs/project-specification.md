@@ -41,7 +41,7 @@ SRPlatform 是一个面向工程学习的统一仿真平台，将电路仿真、
 | --- | --- | --- |
 | 语言 | C++20 | 不启用 C++ Modules，先保持头文件/源文件结构 |
 | 构建系统 | CMake 3.24+ | 跨平台，支持 Visual Studio 和 Ninja |
-| 包管理 | vcpkg manifest mode | 依赖在 `vcpkg.json` 中声明 |
+| 包管理 | vcpkg manifest mode | 依赖在 `vcpkg.json` 中声明；当前因本机未安装 vcpkg，spdlog/json 暂由 CMake FetchContent 拉取 |
 | 数学库 | GLM | 向量、矩阵、四元数 |
 | ECS | EnTT | 仿真世界实体组件系统 |
 | 渲染 | GLFW + OpenGL 4.6 | 渲染层必须通过接口隔离，后续可迁移 bgfx/Vulkan |

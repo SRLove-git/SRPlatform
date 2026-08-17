@@ -9,16 +9,48 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CompilerWarnings)
 
+include(FetchContent)
+
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG v1.15.3
+)
+
+FetchContent_MakeAvailable(spdlog)
+
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+)
+
+FetchContent_MakeAvailable(json)
+
 option(SRP_BUILD_TESTS "Build SRPlatform unit tests" ON)
 
 add_library(srp_core
     src/core/version.cpp
     src/core/loop/fixed_step_loop.cpp
+    src/core/logging.cpp
+    src/core/config/app_config.cpp
 )
 
 target_include_directories(srp_core
     PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(srp_core
+    PUBLIC
+        spdlog::spdlog
+        nlohmann_json::nlohmann_json
 )
 
 srp_enable_warnings(srp_core)
@@ -80,5 +112,21 @@ if(SRP_BUILD_TESTS)
     add_test(
         NAME core.fixed_step_loop
         COMMAND srp_core_loop_tests
+    )
+
+    add_executable(srp_core_config_tests
+        tests/unit/core/app_config_test.cpp
+    )
+
+    target_link_libraries(srp_core_config_tests
+        PRIVATE
+            srp_core
+    )
+
+    srp_enable_warnings(srp_core_config_tests)
+
+    add_test(
+        NAME core.app_config
+        COMMAND srp_core_config_tests
     )
 endif()

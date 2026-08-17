@@ -1,5 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
+#include "core/config/app_config.hpp"
 #include "core/loop/fixed_step_loop.hpp"
+#include "core/logging.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -50,6 +52,14 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 {
+    const auto config = srp::core::loadAppConfig("assets/config/app.json");
+    srp::core::initLogging(config.logging.level);
+    srp::core::logInfo("SRPlatform starting");
+
+    const std::wstring window_title(
+        config.window.title.begin(),
+        config.window.title.end());
+
     WNDCLASSW window_class{};
     window_class.lpfnWndProc = windowProc;
     window_class.hInstance = instance;
@@ -59,18 +69,19 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 
     if (RegisterClassW(&window_class) == 0)
     {
+        srp::core::logError("failed to register window class");
         return 1;
     }
 
     HWND window = CreateWindowExW(
         0,
         kWindowClassName,
-        L"SRPlatform",
+        window_title.c_str(),
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        800,
-        600,
+        config.window.width,
+        config.window.height,
         nullptr,
         nullptr,
         instance,
@@ -78,13 +89,18 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 
     if (window == nullptr)
     {
+        srp::core::logError("failed to create window");
         return 1;
     }
+
+    srp::core::logInfo("SRPlatform window created");
 
     ShowWindow(window, show_command);
     UpdateWindow(window);
 
-    srp::core::FixedStepLoop fixed_loop(1.0 / 60.0, 8);
+    srp::core::FixedStepLoop fixed_loop(
+        config.simulation.fixed_dt,
+        config.simulation.max_steps_per_frame);
     fixed_loop.reset(srp::core::FixedStepLoop::Clock::now());
 
     MSG message{};
@@ -128,5 +144,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         Sleep(1);
     }
 
+    srp::core::logInfo("SRPlatform stopped");
     return static_cast<int>(message.wParam);
 }

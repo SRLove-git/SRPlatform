@@ -167,7 +167,7 @@ ScriptHost
 项目已确定使用 C++20。
 
 - 构建系统：CMake 3.24+
-- 包管理：vcpkg manifest mode
+- 包管理：vcpkg manifest mode，当前依赖暂由 CMake FetchContent 拉取，待 vcpkg 安装后迁移
 - 数学库：GLM
 - ECS：EnTT
 - 渲染：GLFW + OpenGL 4.6 起步，Dear ImGui 做工具 UI，渲染层通过接口隔离

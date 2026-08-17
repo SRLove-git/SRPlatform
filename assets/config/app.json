@@ -1,0 +1,14 @@
+{
+  "window": {
+    "width": 800,
+    "height": 600,
+    "title": "SRPlatform"
+  },
+  "simulation": {
+    "fixed_dt": 0.016666666666666666,
+    "max_steps_per_frame": 8
+  },
+  "logging": {
+    "level": "info"
+  }
+}
