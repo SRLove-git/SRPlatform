@@ -2,10 +2,13 @@
 #include "core/config/app_config.hpp"
 #include "core/loop/fixed_step_loop.hpp"
 #include "core/logging.hpp"
+#include "physics/physics_world.hpp"
+#include "rendering/debug_draw.hpp"
 
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <vector>
 #include <windows.h>
 
 #include <GL/gl.h>
@@ -19,107 +22,12 @@ constexpr wchar_t kWindowClassName[] = L"SRPlatformWindow";
 std::uint64_t g_simulation_ticks = 0;
 std::uint64_t g_render_frames = 0;
 
-void drawGround()
-{
-    glColor3f(0.25f, 0.28f, 0.32f);
-    glBegin(GL_QUADS);
-    glVertex3f(-5.0f, 0.0f, -5.0f);
-    glVertex3f(5.0f, 0.0f, -5.0f);
-    glVertex3f(5.0f, 0.0f, 5.0f);
-    glVertex3f(-5.0f, 0.0f, 5.0f);
-    glEnd();
-
-    glColor3f(0.42f, 0.46f, 0.52f);
-    glBegin(GL_LINES);
-    for (int i = -5; i <= 5; ++i)
-    {
-        const float position = static_cast<float>(i);
-        glVertex3f(position, 0.0f, -5.0f);
-        glVertex3f(position, 0.0f, 5.0f);
-        glVertex3f(-5.0f, 0.0f, position);
-        glVertex3f(5.0f, 0.0f, position);
-    }
-    glEnd();
-}
-
-void drawBox()
-{
-    constexpr float min_x = -0.5f;
-    constexpr float max_x = 0.5f;
-    constexpr float min_y = 0.0f;
-    constexpr float max_y = 1.0f;
-    constexpr float min_z = -0.5f;
-    constexpr float max_z = 0.5f;
-
-    glColor3f(0.85f, 0.42f, 0.18f);
-    glBegin(GL_QUADS);
-
-    glVertex3f(min_x, min_y, max_z);
-    glVertex3f(max_x, min_y, max_z);
-    glVertex3f(max_x, max_y, max_z);
-    glVertex3f(min_x, max_y, max_z);
-
-    glVertex3f(min_x, min_y, min_z);
-    glVertex3f(min_x, max_y, min_z);
-    glVertex3f(max_x, max_y, min_z);
-    glVertex3f(max_x, min_y, min_z);
-
-    glVertex3f(min_x, max_y, min_z);
-    glVertex3f(min_x, max_y, max_z);
-    glVertex3f(max_x, max_y, max_z);
-    glVertex3f(max_x, max_y, min_z);
-
-    glVertex3f(min_x, min_y, min_z);
-    glVertex3f(max_x, min_y, min_z);
-    glVertex3f(max_x, min_y, max_z);
-    glVertex3f(min_x, min_y, max_z);
-
-    glVertex3f(min_x, min_y, min_z);
-    glVertex3f(min_x, min_y, max_z);
-    glVertex3f(min_x, max_y, max_z);
-    glVertex3f(min_x, max_y, min_z);
-
-    glVertex3f(max_x, min_y, min_z);
-    glVertex3f(max_x, max_y, min_z);
-    glVertex3f(max_x, max_y, max_z);
-    glVertex3f(max_x, min_y, max_z);
-
-    glEnd();
-
-    glColor3f(1.0f, 1.0f, 1.0f);
-    glBegin(GL_LINES);
-
-    glVertex3f(min_x, min_y, min_z);
-    glVertex3f(max_x, min_y, min_z);
-    glVertex3f(min_x, min_y, max_z);
-    glVertex3f(max_x, min_y, max_z);
-    glVertex3f(min_x, max_y, min_z);
-    glVertex3f(max_x, max_y, min_z);
-    glVertex3f(min_x, max_y, max_z);
-    glVertex3f(max_x, max_y, max_z);
-
-    glVertex3f(min_x, min_y, min_z);
-    glVertex3f(min_x, max_y, min_z);
-    glVertex3f(max_x, min_y, min_z);
-    glVertex3f(max_x, max_y, min_z);
-    glVertex3f(min_x, min_y, max_z);
-    glVertex3f(min_x, max_y, max_z);
-    glVertex3f(max_x, min_y, max_z);
-    glVertex3f(max_x, max_y, max_z);
-
-    glVertex3f(min_x, min_y, min_z);
-    glVertex3f(min_x, min_y, max_z);
-    glVertex3f(max_x, min_y, min_z);
-    glVertex3f(max_x, min_y, max_z);
-    glVertex3f(min_x, max_y, min_z);
-    glVertex3f(min_x, max_y, max_z);
-    glVertex3f(max_x, max_y, min_z);
-    glVertex3f(max_x, max_y, max_z);
-
-    glEnd();
-}
-
-void renderScene(HDC device_context, int width, int height)
+void renderScene(
+    HDC device_context,
+    int width,
+    int height,
+    const srp::physics::PhysicsWorld& world,
+    const std::vector<srp::physics::BodyId>& body_ids)
 {
     if (width <= 0 || height <= 0)
     {
@@ -147,8 +55,27 @@ void renderScene(HDC device_context, int width, int height)
         0.0, 0.5, 0.0,
         0.0, 1.0, 0.0);
 
-    drawGround();
-    drawBox();
+    glColor3d(0.35, 0.75, 1.0);
+    for (const srp::physics::BodyId id : body_ids)
+    {
+        const srp::physics::RigidBodyState* body = world.body(id);
+        const srp::physics::CollisionShape* shape = world.shape(id);
+        if (body == nullptr || shape == nullptr)
+        {
+            continue;
+        }
+
+        srp::rendering::drawCollisionShape(
+            *shape,
+            body->position,
+            body->orientation);
+    }
+
+    glColor3d(1.0, 0.2, 0.2);
+    for (const srp::physics::Contact& contact : world.contacts())
+    {
+        srp::rendering::drawContactPoint(contact.point);
+    }
 
     SwapBuffers(device_context);
 }
@@ -259,6 +186,36 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         return 1;
     }
 
+    srp::physics::PhysicsWorld world;
+    std::vector<srp::physics::BodyId> body_ids;
+
+    srp::physics::RigidBodyState ground_state;
+    ground_state.type = srp::physics::RigidBodyType::kStatic;
+
+    srp::physics::PlaneShape ground_plane;
+    ground_plane.normal = srp::math::Vec3(0.0, 1.0, 0.0);
+    body_ids.push_back(world.createBody(ground_state, ground_plane));
+
+    srp::physics::RigidBodyState sphere_state;
+    sphere_state.type = srp::physics::RigidBodyType::kDynamic;
+    sphere_state.mass = 1.0;
+    sphere_state.position = srp::math::Vec3(0.0, 2.0, 0.0);
+    sphere_state.restitution = 0.3;
+
+    srp::physics::SphereShape sphere_shape;
+    sphere_shape.radius = 0.5;
+    body_ids.push_back(world.createBody(sphere_state, sphere_shape));
+
+    srp::physics::RigidBodyState box_state;
+    box_state.type = srp::physics::RigidBodyType::kDynamic;
+    box_state.mass = 1.0;
+    box_state.position = srp::math::Vec3(0.0, 4.0, 0.0);
+    box_state.friction = 0.6;
+
+    srp::physics::BoxShape box_shape;
+    box_shape.half_extents = srp::math::Vec3(0.5);
+    body_ids.push_back(world.createBody(box_state, box_shape));
+
     srp::core::logInfo("SRPlatform window created");
 
     ShowWindow(window, show_command);
@@ -295,6 +252,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
 
         for (std::size_t i = 0; i < update.steps; ++i)
         {
+            world.step(config.simulation.fixed_dt);
             ++g_simulation_ticks;
         }
 
@@ -305,7 +263,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int show_command)
         renderScene(
             device_context,
             client_rect.right - client_rect.left,
-            client_rect.bottom - client_rect.top);
+            client_rect.bottom - client_rect.top,
+            world,
+            body_ids);
 
         std::wstring title =
             L"SRPlatform | sim=" + std::to_wstring(g_simulation_ticks) +

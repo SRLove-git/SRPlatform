@@ -118,6 +118,11 @@ const CollisionShape* PhysicsWorld::shape(BodyId id) const
     return &shapes_[it->second];
 }
 
+const std::vector<Contact>& PhysicsWorld::contacts() const
+{
+    return last_contacts_;
+}
+
 void PhysicsWorld::setGravity(const math::Vec3& gravity)
 {
     gravity_ = gravity;
@@ -359,8 +364,8 @@ void PhysicsWorld::step(double dt)
         normalizeOrientation(state);
     }
 
-    const std::vector<Contact> contacts = generateContacts();
-    solveContacts(contacts);
+    last_contacts_ = generateContacts();
+    solveContacts(last_contacts_);
     solveJoints();
 }
 

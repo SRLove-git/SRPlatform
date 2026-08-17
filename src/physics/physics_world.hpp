@@ -29,6 +29,8 @@ public:
     CollisionShape* shape(BodyId id);
     const CollisionShape* shape(BodyId id) const;
 
+    const std::vector<Contact>& contacts() const;
+
     void setGravity(const math::Vec3& gravity);
     math::Vec3 gravity() const;
 
@@ -39,6 +41,7 @@ private:
     std::vector<RigidBodyState> bodies_;
     std::vector<CollisionShape> shapes_;
     std::vector<Joint> joints_;
+    std::vector<Contact> last_contacts_;
     std::unordered_map<BodyId, std::size_t> body_indices_;
     BodyId next_body_id_{kInvalidBodyId + 1};
     JointId next_joint_id_{kInvalidJointId + 1};

@@ -96,6 +96,25 @@ target_link_libraries(srp_physics
 
 srp_enable_warnings(srp_physics)
 
+add_library(srp_rendering
+    src/rendering/debug_draw.cpp
+)
+
+target_include_directories(srp_rendering
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+)
+
+target_link_libraries(srp_rendering
+    PUBLIC
+        srp_core
+        srp_physics
+        opengl32
+        glu32
+)
+
+srp_enable_warnings(srp_rendering)
+
 add_executable(srp_cli
     src/app/main.cpp
 )
@@ -113,11 +132,9 @@ add_executable(srp_window WIN32
 
 target_link_libraries(srp_window
     PRIVATE
-        srp_core
+        srp_rendering
         user32
         gdi32
-        opengl32
-        glu32
 )
 
 srp_enable_warnings(srp_window)
