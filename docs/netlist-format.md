@@ -72,3 +72,23 @@
 | `pwm_source` | `frequency_hz`、`duty_cycle` |
 
 未写出的参数使用默认值。
+
+## 自定义元件
+
+`ComponentLibrary` 允许用户注册自定义元件模板，例如把二极管封装成“白光 LED”：
+
+```cpp
+srp::circuit::ComponentDefinition white_led;
+white_led.type = srp::circuit::ComponentType::kDiode;
+white_led.name = "white_led";
+white_led.port_names =
+    srp::circuit::defaultPortNames(srp::circuit::ComponentType::kDiode);
+srp::circuit::DiodeParameters diode;
+diode.forward_voltage = 2.8;
+white_led.parameters = diode;
+library.registerComponent("white_led", white_led);
+```
+
+之后网表里可以直接写 `"type": "white_led"`，其默认参数来自模板；网表中的
+`parameters` 可以覆盖模板默认值。重复注册同名元件会被拒绝，模板参数类型与元件
+类型不匹配也会被拒绝。

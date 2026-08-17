@@ -1,5 +1,6 @@
 #include "circuit/netlist_loader.hpp"
 
+#include <cassert>
 #include <fstream>
 #include <unordered_map>
 
@@ -7,55 +8,6 @@ namespace srp::circuit
 {
 namespace
 {
-
-std::optional<ComponentType> parseComponentType(const std::string& type)
-{
-    if (type == "resistor")
-    {
-        return ComponentType::kResistor;
-    }
-    if (type == "capacitor")
-    {
-        return ComponentType::kCapacitor;
-    }
-    if (type == "inductor")
-    {
-        return ComponentType::kInductor;
-    }
-    if (type == "voltage_source")
-    {
-        return ComponentType::kVoltageSource;
-    }
-    if (type == "current_source")
-    {
-        return ComponentType::kCurrentSource;
-    }
-    if (type == "diode")
-    {
-        return ComponentType::kDiode;
-    }
-    if (type == "switch")
-    {
-        return ComponentType::kSwitch;
-    }
-    if (type == "digital_source")
-    {
-        return ComponentType::kDigitalSource;
-    }
-    if (type == "logic_gate")
-    {
-        return ComponentType::kLogicGate;
-    }
-    if (type == "d_flip_flop")
-    {
-        return ComponentType::kDFlipFlop;
-    }
-    if (type == "pwm_source")
-    {
-        return ComponentType::kPwmSource;
-    }
-    return std::nullopt;
-}
 
 std::optional<LogicGateType> parseLogicGateType(const std::string& type)
 {
@@ -130,10 +82,10 @@ bool readBool(
     return true;
 }
 
-bool parseParameters(
+bool applyParameters(
     ComponentType type,
     const nlohmann::json& parameters,
-    ComponentParameters& output,
+    ComponentParameters& base,
     std::string& error)
 {
     if (!parameters.is_object())
@@ -146,98 +98,65 @@ bool parseParameters(
     {
     case ComponentType::kResistor:
     {
-        ResistorParameters params;
-        if (!readNumber(parameters, "resistance", params.resistance, error))
-        {
-            return false;
-        }
-        output = params;
-        return true;
+        ResistorParameters& params = std::get<ResistorParameters>(base);
+        return readNumber(parameters, "resistance", params.resistance, error);
     }
     case ComponentType::kCapacitor:
     {
-        CapacitorParameters params;
-        if (!readNumber(parameters, "capacitance", params.capacitance, error) ||
-            !readNumber(parameters, "initial_voltage", params.initial_voltage, error))
-        {
-            return false;
-        }
-        output = params;
-        return true;
+        CapacitorParameters& params = std::get<CapacitorParameters>(base);
+        return readNumber(parameters, "capacitance", params.capacitance, error) &&
+               readNumber(parameters, "initial_voltage", params.initial_voltage, error);
     }
     case ComponentType::kInductor:
     {
-        InductorParameters params;
-        if (!readNumber(parameters, "inductance", params.inductance, error) ||
-            !readNumber(parameters, "initial_current", params.initial_current, error))
-        {
-            return false;
-        }
-        output = params;
-        return true;
+        InductorParameters& params = std::get<InductorParameters>(base);
+        return readNumber(parameters, "inductance", params.inductance, error) &&
+               readNumber(parameters, "initial_current", params.initial_current, error);
     }
     case ComponentType::kVoltageSource:
     {
-        VoltageSourceParameters params;
-        if (!readNumber(parameters, "voltage", params.voltage, error))
-        {
-            return false;
-        }
-        output = params;
-        return true;
+        VoltageSourceParameters& params =
+            std::get<VoltageSourceParameters>(base);
+        return readNumber(parameters, "voltage", params.voltage, error);
     }
     case ComponentType::kCurrentSource:
     {
-        CurrentSourceParameters params;
-        if (!readNumber(parameters, "current", params.current, error))
-        {
-            return false;
-        }
-        output = params;
-        return true;
+        CurrentSourceParameters& params =
+            std::get<CurrentSourceParameters>(base);
+        return readNumber(parameters, "current", params.current, error);
     }
     case ComponentType::kDiode:
     {
-        DiodeParameters params;
-        if (!readNumber(parameters, "forward_voltage", params.forward_voltage, error) ||
-            !readNumber(parameters, "on_resistance", params.on_resistance, error) ||
-            !readNumber(parameters, "off_resistance", params.off_resistance, error))
-        {
-            return false;
-        }
-        output = params;
-        return true;
+        DiodeParameters& params = std::get<DiodeParameters>(base);
+        return readNumber(parameters, "forward_voltage", params.forward_voltage, error) &&
+               readNumber(parameters, "on_resistance", params.on_resistance, error) &&
+               readNumber(parameters, "off_resistance", params.off_resistance, error);
     }
     case ComponentType::kSwitch:
     {
-        SwitchParameters params;
-        if (!readBool(parameters, "closed", params.closed, error) ||
-            !readNumber(parameters, "on_resistance", params.on_resistance, error) ||
-            !readNumber(parameters, "off_resistance", params.off_resistance, error))
-        {
-            return false;
-        }
-        output = params;
-        return true;
+        SwitchParameters& params = std::get<SwitchParameters>(base);
+        return readBool(parameters, "closed", params.closed, error) &&
+               readNumber(parameters, "on_resistance", params.on_resistance, error) &&
+               readNumber(parameters, "off_resistance", params.off_resistance, error);
     }
     case ComponentType::kDigitalSource:
     {
-        DigitalSourceParameters params;
-        if (!readBool(parameters, "initial_value", params.initial_value, error) ||
-            !readNumber(parameters, "frequency_hz", params.frequency_hz, error))
-        {
-            return false;
-        }
-        output = params;
-        return true;
+        DigitalSourceParameters& params =
+            std::get<DigitalSourceParameters>(base);
+        return readBool(parameters, "initial_value", params.initial_value, error) &&
+               readNumber(parameters, "frequency_hz", params.frequency_hz, error);
     }
     case ComponentType::kLogicGate:
     {
-        LogicGateParameters params;
+        LogicGateParameters& params = std::get<LogicGateParameters>(base);
         const auto type_it = parameters.find("type");
-        if (type_it == parameters.end() || !type_it->is_string())
+        if (type_it == parameters.end() || type_it->is_null())
         {
-            error = "logic_gate requires a string 'type' parameter";
+            return true;
+        }
+        if (!type_it->is_string())
+        {
+            error = "logic_gate 'type' parameter must be a string";
             return false;
         }
         const std::optional<LogicGateType> gate_type =
@@ -248,33 +167,24 @@ bool parseParameters(
             return false;
         }
         params.type = *gate_type;
-        output = params;
         return true;
     }
     case ComponentType::kDFlipFlop:
     {
-        DFlipFlopParameters params;
-        if (!readBool(parameters, "initial_q", params.initial_q, error))
-        {
-            return false;
-        }
-        output = params;
-        return true;
+        DFlipFlopParameters& params =
+            std::get<DFlipFlopParameters>(base);
+        return readBool(parameters, "initial_q", params.initial_q, error);
     }
     case ComponentType::kPwmSource:
     {
-        PwmSourceParameters params;
-        if (!readNumber(parameters, "frequency_hz", params.frequency_hz, error) ||
-            !readNumber(parameters, "duty_cycle", params.duty_cycle, error))
-        {
-            return false;
-        }
-        output = params;
-        return true;
+        PwmSourceParameters& params =
+            std::get<PwmSourceParameters>(base);
+        return readNumber(parameters, "frequency_hz", params.frequency_hz, error) &&
+               readNumber(parameters, "duty_cycle", params.duty_cycle, error);
     }
     }
 
-    error = "unsupported component type";
+    assert(false && "unreachable component type");
     return false;
 }
 
@@ -287,6 +197,14 @@ bool isGroundName(const std::string& name)
 
 std::optional<CircuitModel> loadNetlist(
     const nlohmann::json& json,
+    std::string& error)
+{
+    return loadNetlist(json, ComponentLibrary{}, error);
+}
+
+std::optional<CircuitModel> loadNetlist(
+    const nlohmann::json& json,
+    const ComponentLibrary& library,
     std::string& error)
 {
     error.clear();
@@ -356,29 +274,33 @@ std::optional<CircuitModel> loadNetlist(
             error = "netlist component requires a string 'type'";
             return std::nullopt;
         }
-        const std::optional<ComponentType> type =
-            parseComponentType(type_it->get<std::string>());
-        if (!type.has_value())
+        const std::string type_name = type_it->get<std::string>();
+        const std::optional<ComponentDefinition> template_definition =
+            library.find(type_name);
+        if (!template_definition.has_value())
         {
-            error = "unknown component type: " + type_it->get<std::string>();
+            error = "unknown component type: " + type_name;
             return std::nullopt;
         }
 
-        ComponentDefinition definition;
-        definition.type = *type;
-        definition.port_names = defaultPortNames(*type);
+        ComponentDefinition definition = *template_definition;
         if (const auto name_it = entry.find("name");
             name_it != entry.end() && name_it->is_string())
         {
             definition.name = name_it->get<std::string>();
         }
 
-        const nlohmann::json empty_parameters = nlohmann::json::object();
-        const nlohmann::json& parameters =
-            entry.value("parameters", empty_parameters);
-        if (!parseParameters(*type, parameters, definition.parameters, error))
+        if (const auto parameters_it = entry.find("parameters");
+            parameters_it != entry.end() && !parameters_it->is_null())
         {
-            return std::nullopt;
+            if (!applyParameters(
+                    definition.type,
+                    *parameters_it,
+                    definition.parameters,
+                    error))
+            {
+                return std::nullopt;
+            }
         }
 
         const auto ports_it = entry.find("ports");
@@ -387,7 +309,8 @@ std::optional<CircuitModel> loadNetlist(
             error = "netlist component requires a 'ports' array of node names";
             return std::nullopt;
         }
-        const std::size_t expected_ports = defaultPortCount(*type);
+        const std::size_t expected_ports =
+            defaultPortCount(definition.type);
         if (ports_it->size() != expected_ports)
         {
             error = "component '" + definition.name +

@@ -121,6 +121,7 @@ srp_enable_warnings(srp_physics)
 
 add_library(srp_circuit
     src/circuit/circuit_model.cpp
+    src/circuit/component_library.cpp
     src/circuit/linear_solver.cpp
     src/circuit/dc_solver.cpp
     src/circuit/transient_solver.cpp
@@ -293,6 +294,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/circuit/digital_solver_test.cpp
         tests/unit/circuit/regression_test.cpp
         tests/unit/circuit/netlist_loader_test.cpp
+        tests/unit/circuit/component_library_test.cpp
         tests/unit/control/pid_controller_test.cpp
         tests/unit/control/hover_controller_test.cpp
         tests/unit/mod/mod_manifest_test.cpp

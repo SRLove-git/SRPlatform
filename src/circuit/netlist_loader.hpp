@@ -1,6 +1,7 @@
 #pragma once
 
 #include "circuit/circuit_model.hpp"
+#include "circuit/component_library.hpp"
 
 #include <filesystem>
 #include <optional>
@@ -17,6 +18,14 @@ namespace srp::circuit
 // first use.
 std::optional<CircuitModel> loadNetlist(
     const nlohmann::json& json,
+    std::string& error);
+
+// Same as loadNetlist, but component types are resolved through a component
+// library first (custom templates before built-in types). A netlist
+// "parameters" object overrides the template's defaults.
+std::optional<CircuitModel> loadNetlist(
+    const nlohmann::json& json,
+    const ComponentLibrary& library,
     std::string& error);
 
 // Reads a netlist JSON file from disk and loads it.
