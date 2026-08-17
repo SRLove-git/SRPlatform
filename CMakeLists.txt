@@ -140,6 +140,7 @@ add_library(srp_bridge
     src/bridge/car_entity.cpp
     src/bridge/car_control_bus.cpp
     src/bridge/dc_motor_model.cpp
+    src/bridge/propeller_model.cpp
     src/bridge/state_recorder.cpp
 )
 
@@ -250,6 +251,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/bridge/bridge_test.cpp
         tests/unit/bridge/car_entity_test.cpp
         tests/unit/bridge/dc_motor_model_test.cpp
+        tests/unit/bridge/propeller_model_test.cpp
         tests/unit/bridge/state_recorder_test.cpp
         tests/unit/scripting/lua_script_host_test.cpp
         tests/unit/scripting/car_closed_loop_demo_test.cpp
