@@ -12,6 +12,7 @@
 | `description` | string | 否 | 简短描述。 |
 | `author` | string | 否 | 作者。 |
 | `entry` | string | 是 | 入口脚本路径，相对于 Mod 根目录，例如 `scripts/main.lua`。 |
+| `blueprint` | string | 否 | 实体蓝图路径，相对于 Mod 根目录，例如 `blueprint.json`。缺省时按约定使用 `blueprint.json`。 |
 | `requires` | string[] | 否 | 依赖的 Mod ID 列表，例如 `["com.example.core"]`。 |
 
 ## 示例
@@ -24,6 +25,7 @@
   "description": "An example RC car mod.",
   "author": "SRPlatform",
   "entry": "scripts/main.lua",
+  "blueprint": "blueprint.json",
   "requires": []
 }
 ```

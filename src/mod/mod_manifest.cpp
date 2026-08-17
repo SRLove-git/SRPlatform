@@ -119,6 +119,7 @@ std::optional<ModManifest> parseManifest(
 
     readOptionalString(json, "description", manifest.description);
     readOptionalString(json, "author", manifest.author);
+    readOptionalString(json, "blueprint", manifest.blueprint);
 
     const auto requires_it = json.find("requires");
     if (requires_it != json.end() && !requires_it->is_null())

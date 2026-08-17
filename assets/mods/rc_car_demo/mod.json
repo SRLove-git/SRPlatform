@@ -1,0 +1,10 @@
+{
+  "id": "com.example.rc_car",
+  "name": "RC Car Demo",
+  "version": "1.0.0",
+  "description": "Example mod that creates and runs an RC car.",
+  "author": "SRPlatform",
+  "entry": "scripts/main.lua",
+  "blueprint": "blueprint.json",
+  "requires": []
+}

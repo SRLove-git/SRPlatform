@@ -20,6 +20,8 @@ struct ModManifest
     std::string description;
     std::string author;
     std::string entry;
+    // Optional entity blueprint path relative to the mod root.
+    std::string blueprint;
     // JSON field name is "requires"; "requires" is a C++20 keyword.
     std::vector<std::string> dependencies;
 };

@@ -17,6 +17,7 @@ nlohmann::json validManifestJson()
         {"description", "An example RC car mod."},
         {"author", "SRPlatform"},
         {"entry", "scripts/main.lua"},
+        {"blueprint", "blueprint.json"},
         {"requires", nlohmann::json::array({"com.example.core"})}};
 }
 
@@ -35,6 +36,7 @@ TEST(ModManifest, ParsesCompleteManifest)
     EXPECT_EQ(manifest->description, "An example RC car mod.");
     EXPECT_EQ(manifest->author, "SRPlatform");
     EXPECT_EQ(manifest->entry, "scripts/main.lua");
+    EXPECT_EQ(manifest->blueprint, "blueprint.json");
     ASSERT_EQ(manifest->dependencies.size(), 1U);
     EXPECT_EQ(manifest->dependencies[0], "com.example.core");
     EXPECT_TRUE(error.empty());
@@ -55,6 +57,7 @@ TEST(ModManifest, ParsesMinimalManifest)
     EXPECT_EQ(manifest->id, "minimal.mod");
     EXPECT_TRUE(manifest->description.empty());
     EXPECT_TRUE(manifest->author.empty());
+    EXPECT_TRUE(manifest->blueprint.empty());
     EXPECT_TRUE(manifest->dependencies.empty());
 }
 

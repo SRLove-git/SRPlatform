@@ -210,6 +210,7 @@ add_library(srp_scripting
     src/scripting/drone_closed_loop_demo.cpp
     src/scripting/hot_reload_script_host.cpp
     src/scripting/lua_script_host.cpp
+    src/scripting/mod_entity_demo.cpp
 )
 
 target_include_directories(srp_scripting
@@ -324,6 +325,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/scripting/hot_reload_script_host_test.cpp
         tests/unit/scripting/car_closed_loop_demo_test.cpp
         tests/unit/scripting/drone_closed_loop_demo_test.cpp
+        tests/unit/scripting/mod_entity_demo_test.cpp
         tests/unit/scripting/script_control_test.cpp
     )
 

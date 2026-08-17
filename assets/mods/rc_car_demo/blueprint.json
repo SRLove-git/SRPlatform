@@ -1,0 +1,18 @@
+{
+  "id": "demo_rc_car",
+  "kind": "car",
+  "parameters": {
+    "chassis_mass": 1.0,
+    "wheel_radius": 0.3,
+    "battery": {
+      "full_charge_voltage_v": 12.0,
+      "empty_charge_voltage_v": 9.0,
+      "internal_resistance_ohm": 0.05
+    },
+    "motor": {
+      "armature_resistance_ohm": 0.5,
+      "torque_constant_nm_per_a": 0.05,
+      "back_emf_constant_v_per_rad_s": 0.05
+    }
+  }
+}
