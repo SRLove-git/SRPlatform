@@ -136,6 +136,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/physics/broadphase_test.cpp
         tests/unit/physics/narrowphase_test.cpp
         tests/unit/physics/contact_test.cpp
+        tests/unit/physics/contact_solver_test.cpp
     )
 
     target_link_libraries(srp_unit_tests
