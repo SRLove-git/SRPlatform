@@ -75,39 +75,43 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(googletest)
 
-set(IMGUI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+# Dear ImGui is only consumed by the Windows editor window for now. Keeping it
+# behind WIN32 lets Linux CI build the headless core without OpenGL headers.
+if(WIN32)
+    set(IMGUI_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
-FetchContent_Declare(
-    imgui
-    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG v1.91.8
-)
+    FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY https://github.com/ocornut/imgui.git
+        GIT_TAG v1.91.8
+    )
 
-FetchContent_MakeAvailable(imgui)
+    FetchContent_MakeAvailable(imgui)
 
-add_library(imgui STATIC
-    "${imgui_SOURCE_DIR}/imgui.cpp"
-    "${imgui_SOURCE_DIR}/imgui_demo.cpp"
-    "${imgui_SOURCE_DIR}/imgui_draw.cpp"
-    "${imgui_SOURCE_DIR}/imgui_tables.cpp"
-    "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
-    "${imgui_SOURCE_DIR}/backends/imgui_impl_opengl2.cpp"
-    "${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp"
-)
+    add_library(imgui STATIC
+        "${imgui_SOURCE_DIR}/imgui.cpp"
+        "${imgui_SOURCE_DIR}/imgui_demo.cpp"
+        "${imgui_SOURCE_DIR}/imgui_draw.cpp"
+        "${imgui_SOURCE_DIR}/imgui_tables.cpp"
+        "${imgui_SOURCE_DIR}/imgui_widgets.cpp"
+        "${imgui_SOURCE_DIR}/backends/imgui_impl_opengl2.cpp"
+        "${imgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp"
+    )
 
-target_include_directories(imgui
-    PUBLIC
-        "${imgui_SOURCE_DIR}"
-        "${imgui_SOURCE_DIR}/backends"
-)
+    target_include_directories(imgui
+        PUBLIC
+            "${imgui_SOURCE_DIR}"
+            "${imgui_SOURCE_DIR}/backends"
+    )
 
-target_link_libraries(imgui
-    PUBLIC
-        opengl32
-        dwmapi
-)
+    target_link_libraries(imgui
+        PUBLIC
+            opengl32
+            dwmapi
+    )
 
-srp_enable_warnings(imgui)
+    srp_enable_warnings(imgui)
+endif()
 
 option(SRP_BUILD_TESTS "Build SRPlatform unit tests" ON)
 
@@ -265,26 +269,28 @@ target_link_libraries(srp_scripting
 
 srp_enable_warnings(srp_scripting)
 
-add_library(srp_rendering
-    src/rendering/debug_draw.cpp
-)
+if(WIN32)
+    add_library(srp_rendering
+        src/rendering/debug_draw.cpp
+    )
 
-target_include_directories(srp_rendering
-    PUBLIC
-        "${CMAKE_CURRENT_SOURCE_DIR}/src"
-)
+    target_include_directories(srp_rendering
+        PUBLIC
+            "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    )
 
-target_link_libraries(srp_rendering
-    PUBLIC
-        srp_core
-        srp_physics
-        opengl32
-        glu32
-    PRIVATE
-        srp_mod
-)
+    target_link_libraries(srp_rendering
+        PUBLIC
+            srp_core
+            srp_physics
+            opengl32
+            glu32
+        PRIVATE
+            srp_mod
+    )
 
-srp_enable_warnings(srp_rendering)
+    srp_enable_warnings(srp_rendering)
+endif()
 
 add_library(srp_editor
     src/editor/scene_editor.cpp
@@ -324,21 +330,23 @@ target_link_libraries(srp_cli
 
 srp_enable_warnings(srp_cli)
 
-add_executable(srp_window WIN32
-    src/app/window_main.cpp
-)
+if(WIN32)
+    add_executable(srp_window WIN32
+        src/app/window_main.cpp
+    )
 
-target_link_libraries(srp_window
-    PRIVATE
-        srp_rendering
-        srp_scripting
-        srp_editor
-        imgui
-        user32
-        gdi32
-)
+    target_link_libraries(srp_window
+        PRIVATE
+            srp_rendering
+            srp_scripting
+            srp_editor
+            imgui
+            user32
+            gdi32
+    )
 
-srp_enable_warnings(srp_window)
+    srp_enable_warnings(srp_window)
+endif()
 
 add_executable(srp_bench
     src/bench/main.cpp
@@ -445,9 +453,15 @@ endif()
 
 # --- Release packaging -------------------------------------------------------
 
-install(TARGETS srp_window srp_cli
+install(TARGETS srp_cli
     RUNTIME DESTINATION bin
 )
+
+if(WIN32)
+    install(TARGETS srp_window
+        RUNTIME DESTINATION bin
+    )
+endif()
 
 install(DIRECTORY assets/
     DESTINATION assets
