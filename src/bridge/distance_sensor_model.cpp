@@ -101,8 +101,7 @@ std::optional<double> raySphereShape(
     const math::Vec3& origin,
     const math::Vec3& direction,
     const physics::SphereShape& sphere,
-    const math::Vec3& position,
-    const math::Quat& orientation)
+    const math::Vec3& position)
 {
     return raySphere(origin, direction, position, sphere.radius);
 }
@@ -249,7 +248,7 @@ std::optional<double> rayShape(
             }
             else if constexpr (std::is_same_v<T, physics::SphereShape>)
             {
-                return raySphereShape(origin, direction, value, position, orientation);
+                return raySphereShape(origin, direction, value, position);
             }
             else if constexpr (std::is_same_v<T, physics::PlaneShape>)
             {

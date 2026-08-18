@@ -127,7 +127,7 @@
 | 7.3 | 优化热点路径 | 宽相、窄相、电路求解有量化提升 | ✅ |
 | 7.4 | 补充跨平台构建 | Windows 优先，Linux 可构建 | ✅ |
 | 7.5 | 完善用户文档 | 安装、构建、Mod 开发说明齐全 | ✅ |
-| 7.6 | 清理技术债与告警 | 无新增编译警告和明显坏味道 | ⬜ |
+| 7.6 | 清理技术债与告警 | 无新增编译警告和明显坏味道 | ✅ |
 
 ## 当前待办建议
 
@@ -164,3 +164,7 @@ Phase 7 已开始。7.1 确定性仿真验证完成：新增物理与电路两�
 7.4 跨平台构建完成：CMake 将 imgui、渲染层与 `srp_window` 隔离在 `WIN32` 分支，Linux 可构建无头核心（core/physics/circuit/mod/control/bridge/scripting/editor + `srp_cli` + `srp_bench` + 测试）；新增 CMakePresets（debug/release）与 GitHub Actions CI（ubuntu-latest GCC + windows-latest MinGW64，构建并跑 ctest）。剩余 7.5-7.6。
 
 7.5 用户文档完成：README 更新为当前功能状态与快速开始；新增 `docs/getting-started.md`（安装、构建、运行、编辑器操作、测试、基准、发布打包）与 `docs/mod-development.md`（Mod 目录结构、清单、蓝图、脚本 API、网表、热重载、课程扩展）。剩余 7.6。
+
+7.6 技术债与告警清理完成：全量重编译确认本项目源码零编译告警（修复 distance_sensor_model 的未使用参数；球体射线检测的旋转参数本就无需传递）；消除 window_main 中重复的传感器束角度常量；无 TODO/FIXME 遗留。328 项测试全部通过。
+
+Phase 7 全部完成：确定性验证、性能基准、热点路径优化、跨平台构建、用户文档、告警清理 6 项任务全部交付并上传。

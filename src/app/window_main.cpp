@@ -329,6 +329,7 @@ void drawPlaybackBodies(const std::vector<srp::editor::BodySnapshot>& bodies)
 }
 
 constexpr float kCircuitScale = 60.0f;
+constexpr double kSideBeamAngle = 0.45;
 
 const char* shortComponentName(srp::circuit::ComponentType type)
 {
@@ -1771,18 +1772,17 @@ int WINAPI WinMain(
     sensor_parameters.beam_axis_local = srp::math::Vec3(1.0, 0.0, 0.0);
     g_front_sensor = srp::bridge::DistanceSensorModel(sensor_parameters);
 
-    constexpr double kBeamAngle = 0.45;
     srp::bridge::DistanceSensorParameters side_sensor_parameters;
     side_sensor_parameters.max_range_m = 4.0;
     side_sensor_parameters.beam_axis_local = srp::math::Vec3(
-        std::cos(kBeamAngle),
+        std::cos(kSideBeamAngle),
         0.0,
-        -std::sin(kBeamAngle));
+        -std::sin(kSideBeamAngle));
     g_left_sensor = srp::bridge::DistanceSensorModel(side_sensor_parameters);
     side_sensor_parameters.beam_axis_local = srp::math::Vec3(
-        std::cos(kBeamAngle),
+        std::cos(kSideBeamAngle),
         0.0,
-        std::sin(kBeamAngle));
+        std::sin(kSideBeamAngle));
     g_right_sensor = srp::bridge::DistanceSensorModel(side_sensor_parameters);
 
     std::string course_error;
@@ -1921,15 +1921,14 @@ int WINAPI WinMain(
                             "distance_detected",
                             g_front_sensor.detected() ? 1.0 : 0.0);
 
-                        constexpr double kBeamAngle = 0.45;
                         srp::math::Vec3 beam_left(
-                            std::cos(kBeamAngle),
+                            std::cos(kSideBeamAngle),
                             0.0,
-                            -std::sin(kBeamAngle));
+                            -std::sin(kSideBeamAngle));
                         srp::math::Vec3 beam_right(
-                            std::cos(kBeamAngle),
+                            std::cos(kSideBeamAngle),
                             0.0,
-                            std::sin(kBeamAngle));
+                            std::sin(kSideBeamAngle));
 
                         g_left_sensor.setPose(
                             chassis->position + srp::math::Vec3(0.0, sensor_y, -0.25),
