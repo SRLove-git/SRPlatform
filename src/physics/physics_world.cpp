@@ -1,5 +1,7 @@
 #include "physics/physics_world.hpp"
 
+#include "physics/broadphase.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -310,24 +312,56 @@ std::vector<Contact> PhysicsWorld::generateContacts() const
 {
     std::vector<Contact> contacts;
 
+    // Broad phase: prune pairs whose AABBs do not overlap. The existing
+    // sweep-and-prune broadphase replaces the previous all-pairs scan and is
+    // the main hot-path optimization for scenes with many bodies.
+    Broadphase broadphase;
     for (std::size_t i = 0; i < bodies_.size(); ++i)
     {
-        for (std::size_t j = i + 1; j < bodies_.size(); ++j)
-        {
-            const auto contact = generateContact(
-                body_ids_[i],
+        broadphase.upsert(
+            body_ids_[i],
+            computeAabb(
                 shapes_[i],
                 bodies_[i].position,
-                bodies_[i].orientation,
-                body_ids_[j],
-                shapes_[j],
-                bodies_[j].position,
-                bodies_[j].orientation);
+                bodies_[i].orientation));
+    }
 
-            if (contact.has_value())
+    std::vector<BodyPair> pairs = broadphase.findOverlappingPairs();
+    std::sort(
+        pairs.begin(),
+        pairs.end(),
+        [](const BodyPair& lhs, const BodyPair& rhs)
+        {
+            if (lhs.first != rhs.first)
             {
-                contacts.push_back(*contact);
+                return lhs.first < rhs.first;
             }
+            return lhs.second < rhs.second;
+        });
+
+    for (const BodyPair& pair : pairs)
+    {
+        const auto first_it = body_indices_.find(pair.first);
+        const auto second_it = body_indices_.find(pair.second);
+        if (first_it == body_indices_.end() ||
+            second_it == body_indices_.end())
+        {
+            continue;
+        }
+
+        const auto contact = generateContact(
+            pair.first,
+            shapes_[first_it->second],
+            bodies_[first_it->second].position,
+            bodies_[first_it->second].orientation,
+            pair.second,
+            shapes_[second_it->second],
+            bodies_[second_it->second].position,
+            bodies_[second_it->second].orientation);
+
+        if (contact.has_value())
+        {
+            contacts.push_back(*contact);
         }
     }
 

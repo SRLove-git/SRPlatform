@@ -114,7 +114,9 @@ bool collideSphereBox(
     CollisionResult& result)
 {
     const math::Mat3 rotation = glm::mat3_cast(box_orientation);
-    const math::Mat3 inverse_rotation = glm::inverse(rotation);
+    // Rotations are orthogonal, so the inverse is exactly the transpose and
+    // avoids a full Gauss-Jordan elimination per pair.
+    const math::Mat3 inverse_rotation = glm::transpose(rotation);
 
     const math::Vec3 sphere_center_local =
         inverse_rotation * (sphere_position - box_position);

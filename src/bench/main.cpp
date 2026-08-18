@@ -2,15 +2,18 @@
 #include "circuit/dc_solver.hpp"
 #include "circuit/digital_solver.hpp"
 #include "circuit/transient_solver.hpp"
+#include "physics/narrowphase.hpp"
 #include "physics/physics_world.hpp"
 
-#include <chrono>
 #include <cmath>
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include <nlohmann/json.hpp>
@@ -241,6 +244,103 @@ double benchDigital(std::size_t gate_count, std::size_t steps)
     return elapsedMilliseconds(start, end) / static_cast<double>(steps);
 }
 
+struct NarrowphasePair
+{
+    srp::physics::CollisionShape shape_a;
+    srp::math::Vec3 position_a;
+    srp::math::Quat orientation_a;
+    srp::physics::CollisionShape shape_b;
+    srp::math::Vec3 position_b;
+    srp::math::Quat orientation_b;
+};
+
+double benchNarrowphase(std::size_t pair_count, std::size_t repetitions)
+{
+    std::vector<NarrowphasePair> pairs;
+    pairs.reserve(pair_count);
+    for (std::size_t i = 0; i < pair_count; ++i)
+    {
+        NarrowphasePair pair;
+        const double angle = static_cast<double>(i % 7) * 0.37;
+        pair.orientation_a = srp::math::Quat(
+            std::cos(angle * 0.5),
+            0.0,
+            0.0,
+            std::sin(angle * 0.5));
+        pair.orientation_b = srp::math::Quat(1.0, 0.0, 0.0, 0.0);
+        pair.position_a = srp::math::Vec3(
+            static_cast<double>(i % 11) * 0.4,
+            0.0,
+            static_cast<double>(i % 13) * 0.35);
+        pair.position_b = pair.position_a + srp::math::Vec3(
+            static_cast<double>(i % 5) * 0.3 - 0.6,
+            0.0,
+            static_cast<double>(i % 3) * 0.2 - 0.2);
+
+        if (i % 2 == 0)
+        {
+            srp::physics::BoxShape box;
+            box.half_extents = srp::math::Vec3(0.5);
+            pair.shape_a = box;
+        }
+        else
+        {
+            srp::physics::SphereShape sphere;
+            sphere.radius = 0.4;
+            pair.shape_a = sphere;
+        }
+
+        if (i % 3 == 0)
+        {
+            srp::physics::BoxShape box;
+            box.half_extents = srp::math::Vec3(0.5);
+            pair.shape_b = box;
+        }
+        else
+        {
+            srp::physics::SphereShape sphere;
+            sphere.radius = 0.4;
+            pair.shape_b = sphere;
+        }
+        pairs.push_back(std::move(pair));
+    }
+
+    srp::physics::CollisionResult result;
+    for (std::size_t i = 0; i < 10; ++i)
+    {
+        for (const NarrowphasePair& pair : pairs)
+        {
+            srp::physics::collide(
+                pair.shape_a,
+                pair.position_a,
+                pair.orientation_a,
+                pair.shape_b,
+                pair.position_b,
+                pair.orientation_b,
+                result);
+        }
+    }
+
+    const auto start = Clock::now();
+    for (std::size_t i = 0; i < repetitions; ++i)
+    {
+        for (const NarrowphasePair& pair : pairs)
+        {
+            srp::physics::collide(
+                pair.shape_a,
+                pair.position_a,
+                pair.orientation_a,
+                pair.shape_b,
+                pair.position_b,
+                pair.orientation_b,
+                result);
+        }
+    }
+    const auto end = Clock::now();
+    return elapsedMilliseconds(start, end) /
+        static_cast<double>(pair_count * repetitions);
+}
+
 }  // namespace
 
 int main()
@@ -264,6 +364,11 @@ int main()
             {"ms_per_step", ms_per_step},
             {"steps_per_sec", ms_per_step > 0.0 ? 1000.0 / ms_per_step : 0.0}};
     }
+
+    const double narrowphase_ms = benchNarrowphase(4096, 5);
+    printRow("narrowphase 4096 pairs", 4096, narrowphase_ms);
+    report["physics_narrowphase"]["4096_pairs"] = {
+        {"ms_per_pair", narrowphase_ms}};
 
     const std::size_t circuit_sizes[] = {16, 32, 64};
     for (const std::size_t nodes : circuit_sizes)
