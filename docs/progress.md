@@ -126,7 +126,7 @@
 | 7.2 | 增加性能基准 | 记录刚体和电路节点性能 | ✅ |
 | 7.3 | 优化热点路径 | 宽相、窄相、电路求解有量化提升 | ✅ |
 | 7.4 | 补充跨平台构建 | Windows 优先，Linux 可构建 | ✅ |
-| 7.5 | 完善用户文档 | 安装、构建、Mod 开发说明齐全 | ⬜ |
+| 7.5 | 完善用户文档 | 安装、构建、Mod 开发说明齐全 | ✅ |
 | 7.6 | 清理技术债与告警 | 无新增编译警告和明显坏味道 | ⬜ |
 
 ## 当前待办建议
@@ -162,3 +162,5 @@ Phase 7 已开始。7.1 确定性仿真验证完成：新增物理与电路两�
 7.3 热点路径优化完成：宽相启用 SAP Broadphase（只对 AABB 重叠对做窄相），物理 128 刚体单步 6.28→0.45 ms（×14）；窄相球-盒碰撞用旋转矩阵转置代替 glm::inverse；电路求解器改行主序扁平存储，DC/瞬态 32/64 节点均约 ×1.7-1.9。全部 328 项测试通过（含确定性逐位测试），结果与算术顺序保持一致。剩余 7.4-7.6。
 
 7.4 跨平台构建完成：CMake 将 imgui、渲染层与 `srp_window` 隔离在 `WIN32` 分支，Linux 可构建无头核心（core/physics/circuit/mod/control/bridge/scripting/editor + `srp_cli` + `srp_bench` + 测试）；新增 CMakePresets（debug/release）与 GitHub Actions CI（ubuntu-latest GCC + windows-latest MinGW64，构建并跑 ctest）。剩余 7.5-7.6。
+
+7.5 用户文档完成：README 更新为当前功能状态与快速开始；新增 `docs/getting-started.md`（安装、构建、运行、编辑器操作、测试、基准、发布打包）与 `docs/mod-development.md`（Mod 目录结构、清单、蓝图、脚本 API、网表、热重载、课程扩展）。剩余 7.6。
