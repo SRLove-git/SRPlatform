@@ -340,6 +340,19 @@ target_link_libraries(srp_window
 
 srp_enable_warnings(srp_window)
 
+add_executable(srp_bench
+    src/bench/main.cpp
+)
+
+target_link_libraries(srp_bench
+    PRIVATE
+        srp_core
+        srp_physics
+        srp_circuit
+)
+
+srp_enable_warnings(srp_bench)
+
 if(SRP_BUILD_TESTS)
     enable_testing()
 
