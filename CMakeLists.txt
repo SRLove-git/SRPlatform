@@ -361,6 +361,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/physics/body_removal_test.cpp
         tests/unit/physics/contact_impulse_test.cpp
         tests/unit/physics/regression_test.cpp
+        tests/unit/physics/determinism_test.cpp
         tests/unit/circuit/circuit_model_test.cpp
         tests/unit/circuit/dc_solver_test.cpp
         tests/unit/circuit/transient_solver_test.cpp
@@ -370,6 +371,7 @@ if(SRP_BUILD_TESTS)
         tests/unit/circuit/regression_test.cpp
         tests/unit/circuit/netlist_loader_test.cpp
         tests/unit/circuit/component_library_test.cpp
+        tests/unit/circuit/determinism_test.cpp
         tests/unit/control/pid_controller_test.cpp
         tests/unit/control/hover_controller_test.cpp
         tests/unit/mod/mod_manifest_test.cpp
